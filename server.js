@@ -2,98 +2,399 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import Joi from 'joi';
+import crypto from 'crypto';
 
 // Load environment variables from .env file
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Helper for ES Modules to get __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Primer Sandbox API URL
-const PRIMER_API_URL = '[https://api.sandbox.primer.io/client-session](https://api.sandbox.primer.io/client-session)';
+// Primer API Configuration
+const PRIMER_API_URL = process.env.PRIMER_API_URL || 'https://api.sandbox.primer.io/client-session';
+const PRIMER_WEBHOOK_URL = 'https://api.sandbox.primer.io/webhooks';
 const PRIMER_API_KEY = process.env.PRIMER_API_KEY;
+const WEBHOOK_SECRET = process.env.PRIMER_WEBHOOK_SECRET;
 
-// Middleware to serve static frontend files
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json()); // To parse JSON bodies
+// Validation schemas
+const createSessionSchema = Joi.object({
+  userId: Joi.string().min(1).max(100),
+  cartId: Joi.string().min(1).max(100),
+  amount: Joi.number().positive().max(999999),
+  currency: Joi.string().length(3).uppercase().default('GBP'),
+  customerEmail: Joi.string().email(),
+  items: Joi.array().items(Joi.object({
+    id: Joi.string().required(),
+    name: Joi.string().required(),
+    amount: Joi.number().positive().required(),
+    quantity: Joi.number().integer().positive().required()
+  }))
+});
 
-// Secure route to create the Client Session (Backend Logic)
-app.post('/create-client-session', async (req, res) => {
-    // ⚠️ Security Check: Ensure the API Key is set
-    if (!PRIMER_API_KEY || PRIMER_API_KEY === 'sk_test_...') {
-        console.error("Primer API Key not set. Check your .env file.");
-        return res.status(500).json({ error: "Server misconfigured: Primer API Key is missing." });
+// Security middleware with official Primer CSP requirements
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      // Official Primer CSP requirements + our additional needs
+      scriptSrc: [
+        "'self'", 
+        "'unsafe-inline'", 
+        "sdk.primer.io", 
+        "*.primer.io",
+        "https://cdn.tailwindcss.com", 
+        "https://www.gstatic.com",
+        "https://assets.primer.io"
+      ],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: [
+        "'self'", 
+        "'unsafe-inline'", 
+        "*.primer.io",
+        "https://cdn.tailwindcss.com", 
+        "https://fonts.googleapis.com"
+      ],
+      styleSrcElem: [
+        "'self'", 
+        "'unsafe-inline'", 
+        "*.primer.io",
+        "https://cdn.tailwindcss.com", 
+        "https://fonts.googleapis.com"
+      ],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https://placehold.co"],
+      // Official Primer connect sources
+      connectSrc: [
+        "'self'", 
+        "*.primer.io",
+        "https://api.sandbox.primer.io", 
+        "https://api.primer.io"
+      ],
+      // Official Primer frame sources
+      frameSrc: [
+        "'self'", 
+        "*.primer.io",
+        "https://checkout.primer.io", 
+        "https://js.primer.io"
+      ]
     }
+  }
+}));
 
-    // This order data is typically received from a checkout cart on the frontend
+// CORS configuration
+const corsOptions = {
+  origin: NODE_ENV === 'production' ? process.env.ALLOWED_ORIGINS?.split(',') : true,
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+
+// Rate limiting
+const createSessionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many session creation requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const webhookLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 1000, // Higher limit for webhooks
+  message: 'Too many webhook requests',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Middleware
+app.use('/create-client-session', createSessionLimiter);
+app.use('/webhook', webhookLimiter);
+app.use(express.json({ limit: '10mb' }));
+app.use(express.static(path.join(__dirname)));
+
+// Logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.path} - ${req.ip}`);
+  next();
+});
+
+// Utility functions
+function validateApiKey() {
+  if (!PRIMER_API_KEY || PRIMER_API_KEY === 'sk_test_...') {
+    throw new Error('Primer API Key not configured. Please check your .env file.');
+  }
+}
+
+function generateOrderId() {
+  return `ORD-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt === maxRetries - 1) throw error;
+      
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.warn(`Attempt ${attempt + 1} failed, retrying in ${delay}ms:`, error.message);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
+function verifyWebhookSignature(payload, signature) {
+  if (!WEBHOOK_SECRET) {
+    console.warn('Webhook secret not configured - skipping signature verification');
+    return true;
+  }
+  
+  const expectedSignature = crypto
+    .createHmac('sha256', WEBHOOK_SECRET)
+    .update(payload)
+    .digest('hex');
+    
+  return crypto.timingSafeEqual(
+    Buffer.from(signature, 'hex'),
+    Buffer.from(expectedSignature, 'hex')
+  );
+}
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  
+  if (err.isJoi) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: err.details.map(d => d.message)
+    });
+  }
+  
+  res.status(500).json({
+    error: NODE_ENV === 'production' ? 'Internal server error' : err.message
+  });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    environment: NODE_ENV,
+    version: process.env.npm_package_version || '2.0.0'
+  });
+});
+
+// Enhanced route to create the Client Session
+app.post('/create-client-session', async (req, res) => {
+  try {
+    // Validate API key
+    validateApiKey();
+    
+    // Validate request body
+    const { error, value } = createSessionSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        error: 'Invalid request data',
+        details: error.details.map(d => d.message)
+      });
+    }
+    
+    const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, items } = value;
+    
+    // Build order data with basic required fields
     const orderData = {
-        orderId: `ORD-${Date.now()}`,
-        currencyCode: 'GBP',
-        amount: 4999, // £49.99
-        customer: {
-            emailAddress: "test_customer@example.com",
-            // In a real app, this should be fetched from an authenticated user session
-            customerId: `user-${Math.random().toString(36).substring(2)}` 
-        },
-        order: {
-            lineItems: [{
-                itemId: "hoodie-sku-1",
-                description: "Premium Primer Hoodie",
-                amount: 4999,
-                quantity: 1
-            }]
-        }
+      // Core required fields
+      orderId: generateOrderId(),
+      currencyCode: currency,
+      amount: amount,
+      
+      // Customer information (basic structure)
+      customer: {
+        emailAddress: customerEmail || "test_customer@example.com"
+      },
+      
+      // Order details (simplified)
+      order: {
+        lineItems: items ? items.map(item => ({
+          itemId: item.id || item.itemId,  // Map 'id' to 'itemId' for Primer compatibility
+          description: item.name || item.description,
+          amount: item.amount,
+          quantity: item.quantity
+        })) : [{
+          itemId: "hoodie-sku-1",
+          description: "Premium Primer Hoodie",
+          amount: amount,
+          quantity: 1
+        }]
+      },
+      
+      // Payment method configuration (basic)
+      paymentMethod: {
+        vaultOnSuccess: false
+      }
     };
     
-    // --- Secure Primer API Call with Exponential Backoff ---
-    const maxRetries = 3;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-            const response = await fetch(PRIMER_API_URL, {
-                method: 'POST',
-                headers: {
-                    // ⚠️ PRIVATE API KEY IS SECURELY USED ON THE SERVER ⚠️
-                    'X-Api-Key': PRIMER_API_KEY, 
-                    'Content-Type': 'application/json',
-                    'X-Api-Version': '2021-09-08',
-                },
-                body: JSON.stringify(orderData),
-            });
+    // Make API call with retry logic
+    const response = await retryWithBackoff(async () => {
+      const apiResponse = await fetch(PRIMER_API_URL, {
+        method: 'POST',
+        headers: {
+          'X-API-KEY': PRIMER_API_KEY,
+          'Content-Type': 'application/json',
+          'X-API-VERSION': '2.4',
+          'User-Agent': 'PrimerCheckoutDemo/2.0.0'
+        },
+        body: JSON.stringify(orderData),
+      });
 
-            const data = await response.json();
+      const data = await apiResponse.json();
 
-            if (!response.ok) {
-                console.error(`Primer API Error: ${response.status}`, data);
-                // Throw an error to trigger the retry or final catch block
-                throw new Error(data.message || 'Primer API failed to create client session.');
-            }
+      if (!apiResponse.ok) {
+        const error = new Error(data.message || 'Primer API request failed');
+        error.status = apiResponse.status;
+        error.data = data;
+        throw error;
+      }
 
-            // Success: Return the clientToken to the frontend
-            return res.json({ clientToken: data.clientToken });
+      return data;
+    });
 
-        } catch (error) {
-            console.error(`Attempt ${attempt + 1} failed to create client session:`, error.message);
-            if (attempt < maxRetries - 1) {
-                const delay = Math.pow(2, attempt) * 1000; // Exponential backoff (1s, 2s)
-                await new Promise(resolve => setTimeout(resolve, delay));
-            } else {
-                // All retries failed
-                return res.status(500).json({ error: 'Failed to connect to Primer service after multiple retries.' });
-            }
-        }
+    // Log successful session creation (without sensitive data)
+    console.log(`✅ Client session created successfully for order: ${orderData.orderId}`);
+    
+    // Return enhanced response
+    res.json({
+      clientToken: response.clientToken,
+      orderId: orderData.orderId,
+      amount: orderData.amount,
+      currency: orderData.currencyCode,
+      expiresAt: response.expiresAt
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to create client session:', error.message);
+    
+    // Enhanced error response
+    const statusCode = error.status || 500;
+    const errorResponse = {
+      error: 'Failed to create client session',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Add debug info in development
+    if (NODE_ENV === 'development' && error.data) {
+      errorResponse.debug = error.data;
     }
+    
+    res.status(statusCode).json(errorResponse);
+  }
 });
 
-// Serve the main HTML file from the 'public' directory
+// Webhook endpoint for payment confirmations
+app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  try {
+    const signature = req.headers['x-primer-signature'];
+    const payload = req.body;
+    
+    // Verify webhook signature
+    if (!verifyWebhookSignature(payload, signature)) {
+      console.warn('⚠️ Invalid webhook signature');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+    
+    const event = JSON.parse(payload);
+    console.log(`📥 Received webhook: ${event.eventType} for payment ${event.data?.payment?.id}`);
+    
+    // Handle different webhook events
+    switch (event.eventType) {
+      case 'PAYMENT_CREATED':
+        console.log('💳 Payment created:', event.data.payment.id);
+        break;
+        
+      case 'PAYMENT_AUTHORIZED':
+        console.log('✅ Payment authorized:', event.data.payment.id);
+        // Here you would typically update your database and fulfill the order
+        break;
+        
+      case 'PAYMENT_CAPTURED':
+        console.log('💰 Payment captured:', event.data.payment.id);
+        // Order fulfillment logic goes here
+        break;
+        
+      case 'PAYMENT_FAILED':
+        console.log('❌ Payment failed:', event.data.payment.id);
+        // Handle failed payment
+        break;
+        
+      default:
+        console.log('📧 Unhandled webhook event:', event.eventType);
+    }
+    
+    // Acknowledge webhook receipt
+    res.status(200).json({ received: true });
+    
+  } catch (error) {
+    console.error('🚨 Webhook processing error:', error.message);
+    res.status(400).json({ error: 'Webhook processing failed' });
+  }
+});
+
+// Serve the main HTML file
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not found',
+    path: req.path,
+    method: req.method
+  });
+});
 
-app.listen(PORT, () => {
-    console.log(`Primer Checkout Demo server running securely on http://localhost:${PORT}`);
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
+
+// Start server with enhanced error handling
+const server = app.listen(PORT, () => {
+  console.log(`🚀 Primer Checkout Demo server running on http://localhost:${PORT}`);
+  console.log(`📊 Environment: ${NODE_ENV}`);
+  console.log(`🔐 API Key configured: ${PRIMER_API_KEY ? '✅' : '❌'}`);
+  console.log(`🔗 Webhook secret configured: ${WEBHOOK_SECRET ? '✅' : '❌'}`);
+});
+
+// Handle server startup errors
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use!`);
+    console.log('💡 Solutions:');
+    console.log(`   • Kill existing process: pkill -f "node server.js"`);
+    console.log(`   • Use different port: PORT=3001 yarn start`);
+    console.log(`   • Find process using port: lsof -ti:${PORT}`);
+  } else {
+    console.error(`❌ Server startup error:`, err.message);
+  }
+  process.exit(1);
 });

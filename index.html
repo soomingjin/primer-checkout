@@ -3,281 +3,697 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Primer Universal Checkout Demo</title>
+    <title>Primer Universal Checkout Demo - Enhanced</title>
+    <meta name="description" content="Enhanced secure integration demo for Primer Universal Checkout">
+    
     <!-- Load Tailwind CSS for styling -->
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-    <!-- Load Primer Web SDK via CDN -->
-    <script src="[https://assets.primer.io/checkout/v2/primer.min.js](https://assets.primer.io/checkout/v2/primer.min.js)"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load Primer Web SDK locally -->
+    <script src="/Primer.js"></script>
+    <link rel="stylesheet" href="/Checkout.css">
+    
+    <!-- Custom fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
-        /* Custom styles for the demo */
+        /* Enhanced custom styles */
+        :root {
+            --primary-color: #1f2937;
+            --primary-hover: #374151;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+            --info-color: #3b82f6;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6; /* Light gray background */
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
         }
-        .container-card {
-            max-width: 500px;
-            margin: 4rem auto;
-            background: white;
-            padding: 2rem;
-            border-radius: 1rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            transition: all 0.3s ease;
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.1);
         }
-        /* Custom button styling */
+
         .primary-btn {
-            background-color: #1f2937; /* Dark gray for Primer theme */
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
             color: white;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
+            padding: 0.875rem 2rem;
+            border-radius: 0.75rem;
             font-weight: 600;
-            transition: background-color 0.2s;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
         }
+
         .primary-btn:hover:not(:disabled) {
-            background-color: #4b5563;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(31, 41, 55, 0.3);
         }
+
+        .primary-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
+            border: 3px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
             border-top-color: #fff;
-            width: 1.5rem;
-            height: 1.5rem;
-            animation: spin 1s ease-in-out infinite;
+            width: 1.25rem;
+            height: 1.25rem;
+            animation: spin 1s linear infinite;
         }
+
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        /* Style for Primer's hosted iframe/UI container */
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .product-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-message {
+            border-radius: 0.75rem;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-left: 4px solid;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .status-success {
+            background-color: #ecfdf5;
+            border-color: var(--success-color);
+            color: #065f46;
+        }
+
+        .status-error {
+            background-color: #fef2f2;
+            border-color: var(--error-color);
+            color: #991b1b;
+        }
+
+        .status-info {
+            background-color: #eff6ff;
+            border-color: var(--info-color);
+            color: #1e40af;
+        }
+
+        .status-warning {
+            background-color: #fffbeb;
+            border-color: var(--warning-color);
+            color: #92400e;
+        }
+
         #primer-container {
-            min-height: 400px; /* Ensure space for the checkout form */
+            min-height: 400px;
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+
+        .feature-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin: 0.25rem;
+        }
+
+        .price-tag {
+            background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 700;
+            font-size: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: inherit;
+            backdrop-filter: blur(4px);
         }
     </style>
 </head>
 <body>
-
-    <div id="app" class="p-4 sm:p-6">
-        <div class="container-card">
-            <h1 class="text-3xl font-bold mb-6 text-gray-800 text-center">
-                Primer Demo Store (Node.js Backend)
+    <div id="app" class="min-h-screen p-4 sm:p-6">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-bold text-white mb-2 fade-in">
+                🛍️ Primer Demo Store
             </h1>
-            
-            <!-- Product Display -->
-            <div id="product-display" class="border border-gray-200 p-4 rounded-lg mb-6">
-                <h2 class="text-xl font-semibold mb-2">Premium Primer Hoodie</h2>
-                <div class="flex justify-between items-center">
-                    <img 
-                        src="[https://placehold.co/100x100/1f2937/ffffff?text=Hoodie](https://placehold.co/100x100/1f2937/ffffff?text=Hoodie)" 
-                        alt="Primer Hoodie" 
-                        class="rounded-lg shadow-md"
-                    >
-                    <div class="text-right">
-                        <p class="text-gray-600">Quantity: 1</p>
-                        <p class="text-2xl font-bold text-gray-900">$49.99</p>
+            <p class="text-white/80 text-lg fade-in">
+                Enhanced secure checkout experience powered by Primer
+            </p>
+        </header>
+
+        <!-- Main Container -->
+        <div class="max-w-2xl mx-auto">
+            <div class="glass-card rounded-2xl p-6 sm:p-8 fade-in">
+                
+                <!-- Product Display -->
+                <div id="product-display" class="product-card mb-6">
+                    <div class="flex flex-col sm:flex-row items-center gap-6">
+                        <div class="flex-shrink-0">
+                            <img 
+                                src="https://placehold.co/120x120/1f2937/ffffff?text=🧥" 
+                                alt="Premium Primer Hoodie" 
+                                class="rounded-xl shadow-lg w-24 h-24 sm:w-30 sm:h-30"
+                            >
+                        </div>
+                        <div class="flex-1 text-center sm:text-left">
+                            <h2 class="text-2xl font-bold text-gray-900 mb-2">
+                                Premium Primer Hoodie
+                            </h2>
+                            <p class="text-gray-600 mb-3">
+                                Comfortable, high-quality hoodie perfect for developers
+                            </p>
+                            <div class="flex flex-wrap justify-center sm:justify-start gap-1 mb-3">
+                                <span class="feature-badge">✨ Premium Quality</span>
+                                <span class="feature-badge">🚚 Free Shipping</span>
+                                <span class="feature-badge">↩️ Easy Returns</span>
+                            </div>
+                            <div class="flex items-center justify-center sm:justify-between">
+                                <div class="text-gray-600">
+                                    <span class="block text-sm">Quantity: 1</span>
+                                    <span class="block text-sm">Size: Medium</span>
+                                </div>
+                                <div class="price-tag ml-4">
+                                    £49.99
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div id="checkout-button-container" class="text-center">
+                <!-- Checkout Button -->
+                <div id="checkout-button-container" class="text-center mb-6">
                 <button 
                     id="checkout-button" 
-                    class="primary-btn w-full flex items-center justify-center disabled:opacity-50"
-                    onclick="startCheckout()"
+                    class="primary-btn w-full sm:w-auto flex items-center justify-center disabled:opacity-50 relative"
                 >
-                    <span id="button-text">Start Secure Checkout</span>
-                    <div id="loading-spinner" class="spinner hidden ml-2"></div>
-                </button>
-            </div>
+                        <svg id="checkout-icon" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                        <span id="button-text">Start Secure Checkout</span>
+                        <div id="loading-spinner" class="spinner hidden ml-2"></div>
+                    </button>
+                    <p class="text-sm text-gray-500 mt-2">
+                        🔒 Secured by Primer • SSL encrypted
+                    </p>
+                </div>
 
-            <!-- Primer Checkout UI Container -->
-            <div id="primer-container" class="mt-6">
-                <!-- Primer Universal Checkout UI will be rendered here -->
-            </div>
+                <!-- Status Messages -->
+                <div id="message-container"></div>
 
-            <!-- Status and Message Display -->
-            <div id="message-box" class="mt-6 p-4 border-l-4 border-blue-500 bg-blue-50 rounded-lg hidden">
-                <p id="message-text" class="text-sm text-blue-800 font-medium"></p>
+                <!-- Primer Checkout UI Container -->
+                <div id="primer-container" class="relative">
+                    <!-- Primer Universal Checkout UI will be rendered here -->
+                </div>
+
+                <!-- Additional Info -->
+                <div id="additional-info" class="mt-8 text-center">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-600">
+                        <div class="flex items-center justify-center">
+                            <svg class="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                            </svg>
+                            256-bit SSL encryption
+                        </div>
+                        <div class="flex items-center justify-center">
+                            <svg class="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                            </svg>
+                            PCI DSS compliant
+                        </div>
+                        <div class="flex items-center justify-center">
+                            <svg class="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                            </svg>
+                            Money-back guarantee
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script type="module">
+    <script>
         // ====================================================================
-        // FIREBASE BOILERPLATE (NOT USED FOR PRIMER, BUT MANDATORY STRUCTURE)
-        // ====================================================================
-
-        import { initializeApp } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js)";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js)";
-        import { getFirestore } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js)";
-        import { setLogLevel } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js)";
-        
-        setLogLevel('Debug');
-        let app;
-        let db;
-        let auth;
-        let userId;
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        async function initializeFirebase() {
-            try {
-                if (firebaseConfig) {
-                    app = initializeApp(firebaseConfig);
-                    auth = getAuth(app);
-                    db = getFirestore(app);
-
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-
-                    onAuthStateChanged(auth, (user) => {
-                        if (user) {
-                            userId = user.uid;
-                        } else {
-                            userId = crypto.randomUUID();
-                        }
-                    });
-                } else {
-                    userId = crypto.randomUUID();
-                }
-            } catch (error) {
-                console.error("Firebase Initialization Error:", error);
-                userId = crypto.randomUUID();
-            }
-        }
-
-        initializeFirebase();
-
-        // ====================================================================
-        // PRIMER FRONTEND INTEGRATION LOGIC
+        // ENHANCED PRIMER FRONTEND INTEGRATION
         // ====================================================================
 
+        // DOM elements
         const checkoutButton = document.getElementById('checkout-button');
         const buttonText = document.getElementById('button-text');
+        const checkoutIcon = document.getElementById('checkout-icon');
         const loadingSpinner = document.getElementById('loading-spinner');
-        const messageBox = document.getElementById('message-box');
-        const messageText = document.getElementById('message-text');
+        const messageContainer = document.getElementById('message-container');
+        const productDisplay = document.getElementById('product-display');
+        const checkoutButtonContainer = document.getElementById('checkout-button-container');
+        const primerContainer = document.getElementById('primer-container');
+
+        // State management
+        let currentSession = null;
+        let userId = generateUserId();
 
         /**
-         * Displays a status message to the user.
+         * Generate a unique user ID
          */
-        function showMessage(message, type = 'info') {
-            messageText.textContent = message;
-            messageBox.className = 'mt-6 p-4 border-l-4 rounded-lg';
-            messageBox.classList.remove('hidden');
+        function generateUserId() {
+            return `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        }
+
+        /**
+         * Enhanced message display with different types and auto-dismiss
+         */
+        function showMessage(message, type = 'info', autoDismiss = true) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `status-message status-${type}`;
             
-            if (type === 'success') {
-                messageBox.classList.add('border-green-500', 'bg-green-50');
-            } else if (type === 'error') {
-                messageBox.classList.add('border-red-500', 'bg-red-50');
-            } else {
-                messageBox.classList.add('border-blue-500', 'bg-blue-50');
+            // Add icon based on type
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            
+            messageDiv.innerHTML = `
+                <div class="flex items-start">
+                    <span class="mr-2 text-lg">${icons[type] || icons.info}</span>
+                    <div class="flex-1">
+                        <p class="font-medium">${message}</p>
+                        <small class="opacity-75">${new Date().toLocaleTimeString()}</small>
+                    </div>
+                </div>
+            `;
+            
+            // Clear previous messages of the same type
+            const existingMessages = messageContainer.querySelectorAll(`.status-${type}`);
+            existingMessages.forEach(msg => msg.remove());
+            
+            messageContainer.appendChild(messageDiv);
+            
+            // Auto-dismiss after 5 seconds for non-error messages
+            if (autoDismiss && type !== 'error') {
+                setTimeout(() => {
+                    if (messageDiv.parentNode) {
+                        messageDiv.style.opacity = '0';
+                        messageDiv.style.transform = 'translateY(-10px)';
+                        setTimeout(() => messageDiv.remove(), 300);
+                    }
+                }, 5000);
             }
         }
 
         /**
-         * Toggles the loading state of the checkout button.
+         * Enhanced loading state management
          */
-        function toggleLoading(isLoading) {
+        function toggleLoading(isLoading, loadingText = 'Processing...') {
             checkoutButton.disabled = isLoading;
             loadingSpinner.classList.toggle('hidden', !isLoading);
-            buttonText.textContent = isLoading ? 'Starting Session...' : 'Start Secure Checkout';
+            checkoutIcon.classList.toggle('hidden', isLoading);
+            buttonText.textContent = isLoading ? loadingText : 'Start Secure Checkout';
+            
+            if (isLoading) {
+                const overlay = document.createElement('div');
+                overlay.className = 'loading-overlay';
+                overlay.id = 'loading-overlay';
+                overlay.innerHTML = `
+                    <div class="text-center">
+                        <div class="spinner mb-2"></div>
+                        <p class="text-gray-600">${loadingText}</p>
+                    </div>
+                `;
+                primerContainer.appendChild(overlay);
+            } else {
+                const overlay = document.getElementById('loading-overlay');
+                if (overlay) overlay.remove();
+            }
         }
 
-
         /**
-         * Fetches the clientToken from the secure Node.js backend.
-         * @returns {Promise<string>} The generated clientToken.
+         * Enhanced API call to get client token with better error handling
          */
         async function getClientTokenFromBackend() {
-            const API_URL = '/create-client-session';
+            const requestData = {
+                userId: userId,
+                cartId: `cart-${Date.now()}`,
+                amount: 4999,
+                currency: 'GBP',
+                customerEmail: 'demo@example.com',
+                items: [{
+                    id: 'hoodie-sku-1',
+                    name: 'Premium Primer Hoodie',
+                    amount: 4999,
+                    quantity: 1
+                }]
+            };
 
-            // The backend handles the retry logic and authentication for the Primer API call.
-            const response = await fetch(API_URL, {
+            const response = await fetch('/create-client-session', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                // Optionally send cart data or user ID if needed by the server
-                body: JSON.stringify({ userId: userId, cartId: "cart-123" }), 
+                body: JSON.stringify(requestData),
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                // The backend has returned an error (e.g., API key missing, Primer API down)
-                throw new Error(data.error || 'Failed to get client session from server.');
+                throw new Error(data.message || data.error || `Server error: ${response.status}`);
             }
 
-            return data.clientToken;
+            return data;
         }
 
         /**
-         * Main function to start the checkout process.
+         * Reset UI to initial state
          */
-        window.startCheckout = async function() {
+        function resetUI() {
+            toggleLoading(false);
+            productDisplay.classList.remove('hidden');
+            checkoutButtonContainer.classList.remove('hidden');
+            primerContainer.innerHTML = '';
+            currentSession = null;
+        }
+
+        /**
+         * Main checkout function with enhanced error handling
+         */
+        async function startCheckout() {
+            // Enhanced validation checks with debugging
+            console.log('🚀 Starting checkout process...');
+            console.log('typeof Primer at checkout time:', typeof Primer);
+            console.log('Primer object at checkout time:', Primer);
+            
             if (typeof Primer === 'undefined') {
-                showMessage("Primer SDK not loaded. Check your network or the server setup.", 'error');
+                console.error('❌ Primer is undefined at checkout time');
+                showMessage("Primer SDK not loaded. Please check your internet connection and try again.", 'error');
                 return;
             }
-
-            // Reset UI state
-            toggleLoading(true);
-            document.getElementById('primer-container').innerHTML = ''; // Clear previous UI
-            showMessage("1. Requesting Client Session from Node.js Backend...");
+            
+            console.log('Available Primer methods at checkout:', Object.keys(Primer));
+            console.log('showUniversalCheckout function:', Primer.showUniversalCheckout);
+            console.log('typeof showUniversalCheckout:', typeof Primer.showUniversalCheckout);
+            
+            // Check if Primer SDK methods are nested under Primer.Primer
+            console.log('Checking nested Primer.Primer:', Primer.Primer);
+            console.log('typeof Primer.Primer:', typeof Primer.Primer);
+            if (Primer.Primer) {
+                console.log('Nested Primer methods:', Object.keys(Primer.Primer));
+                console.log('Nested showUniversalCheckout:', typeof Primer.Primer.showUniversalCheckout);
+            }
 
             try {
-                // Step 1: Get the client token from the secure backend
-                const clientToken = await getClientTokenFromBackend();
-                showMessage("2. Client Session created. Initializing Universal Checkout UI...");
+                // Reset state
+                toggleLoading(true, 'Initializing checkout...');
+                primerContainer.innerHTML = '';
+                showMessage("Connecting to secure payment server...", 'info');
 
-                // Hide the original button and product info while checkout is active
-                document.getElementById('checkout-button-container').classList.add('hidden');
-                document.getElementById('product-display').classList.add('hidden');
+                // Step 1: Get client session
+                toggleLoading(true, 'Creating secure session...');
+                const sessionData = await getClientTokenFromBackend();
+                currentSession = sessionData;
+                
+                showMessage("Secure session created successfully!", 'success');
+                
+                // Step 2: Hide product display and show checkout
+                productDisplay.classList.add('hidden');
+                checkoutButtonContainer.classList.add('hidden');
+                
+                toggleLoading(true, 'Loading payment methods...');
 
-                // Step 2: Initialize and display Universal Checkout
-                await Primer.showUniversalCheckout(clientToken, {
+                // Step 3: Initialize Primer Universal Checkout following official patterns
+                const checkoutOptions = {
                     container: '#primer-container',
-
-                    // --- CALLBACKS ---
                     
-                    onCheckoutComplete({ payment }) {
-                        showMessage(`Payment Succeeded! Payment ID: ${payment.id}. 
-                        (Fulfillment must be confirmed via Primer Webhook on the server side!)`, 'success');
-                        console.log('Payment Completed:', payment);
+                    // Enhanced styling options per Primer documentation
+                    theme: {
+                        colorPrimary: '#1f2937',
+                        colorSecondary: '#6b7280',
+                        borderRadius: '0.75rem',
+                        spacingUnit: '16px',
+                        // Additional theme options per official docs
+                        fontFamily: 'Inter, sans-serif',
+                        colorBackground: '#ffffff'
                     },
 
-                    onCheckoutFail(error, { payment }, handler) {
-                        console.error('Checkout Failed:', error, payment);
-                        showMessage(`Checkout Failed: ${error.message || 'Unknown Error'}`, 'error');
-                        handler?.showErrorMessage('Payment failed. Please try again.');
+                    // Payment flow configuration per official docs
+                    paymentFlow: 'DEFAULT',
+                    
+                    // Enhanced options per Primer documentation
+                    options: {
+                        // Enable payment method options as per docs
+                        allowCardholderNameInput: true,
+                        allowSavePaymentMethod: true,
+                        // Enhanced validation
+                        validateZipCode: true
+                    },
+
+                    // Official callback patterns from Primer documentation
+                    onCheckoutComplete(checkoutData) {
+                        const { payment, paymentMethod } = checkoutData;
+                        
+                        console.log('✅ Payment completed successfully:', {
+                            paymentId: payment?.id,
+                            paymentMethodType: paymentMethod?.paymentMethodType,
+                            amount: payment?.amount,
+                            currency: payment?.currencyCode
+                        });
+                        
+                        showMessage(
+                            `🎉 Payment successful! Transaction ID: ${payment?.id}. Order confirmation will be sent to your email.`, 
+                            'success', 
+                            false
+                        );
+                        
+                        // Success state with order summary
+                        setTimeout(() => {
+                            primerContainer.innerHTML = `
+                                <div class="text-center py-12">
+                                    <div class="text-6xl mb-4">🎉</div>
+                                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h3>
+                                    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                                        <p class="text-sm text-green-800">
+                                            <strong>Payment ID:</strong> ${payment?.id || 'N/A'}<br>
+                                            <strong>Method:</strong> ${paymentMethod?.paymentMethodType || 'N/A'}<br>
+                                            <strong>Amount:</strong> ${((payment?.amount || 0) / 100).toFixed(2)} ${payment?.currencyCode || 'GBP'}
+                                        </p>
+                                    </div>
+                                    <p class="text-gray-600 mb-6">Thank you for your purchase. Order confirmation has been sent.</p>
+                                    <button id="new-order-btn" class="primary-btn">Start New Order</button>
+                                </div>
+                            `;
+                            
+                            // Add event listener to the dynamically created button
+                            const newOrderBtn = document.getElementById('new-order-btn');
+                            if (newOrderBtn) {
+                                newOrderBtn.addEventListener('click', resetUI);
+                            }
+                        }, 2000);
+                    },
+
+                    onCheckoutFail(error, checkoutData, handler) {
+                        const { payment, paymentMethod } = checkoutData || {};
+                        
+                        console.error('❌ Checkout failed:', {
+                            error: error.message,
+                            errorCode: error.errorCode,
+                            paymentId: payment?.id,
+                            paymentMethodType: paymentMethod?.paymentMethodType
+                        });
+                        
+                        // Enhanced error messaging per Primer patterns
+                        let errorMessage = 'Payment failed. Please try again.';
+                        
+                        // Handle specific error types as per Primer documentation
+                        if (error.errorCode) {
+                            switch (error.errorCode) {
+                                case 'CARD_DECLINED':
+                                    errorMessage = 'Your card was declined. Please try a different payment method.';
+                                    break;
+                                case 'INSUFFICIENT_FUNDS':
+                                    errorMessage = 'Insufficient funds. Please try a different payment method.';
+                                    break;
+                                case 'CARD_EXPIRED':
+                                    errorMessage = 'Your card has expired. Please use a different card.';
+                                    break;
+                                case 'INVALID_CARD_NUMBER':
+                                    errorMessage = 'Invalid card number. Please check your card details.';
+                                    break;
+                                default:
+                                    errorMessage = `Payment failed: ${error.message || 'Unknown error occurred'}`;
+                            }
+                        }
+                        
+                        showMessage(errorMessage, 'error');
+                        
+                        // Use handler to show inline error as per official docs
+                        if (handler?.showErrorMessage) {
+                            handler.showErrorMessage(errorMessage);
+                        }
+                        
+                        setTimeout(resetUI, 5000);
                     },
 
                     onDismiss() {
-                        console.log('Checkout dismissed.');
-                        // Restore initial UI state
-                        toggleLoading(false);
-                        document.getElementById('checkout-button-container').classList.remove('hidden');
-                        document.getElementById('product-display').classList.remove('hidden');
-                        showMessage("Click 'Start Secure Checkout' to begin the payment flow.");
+                        console.log('🚪 Checkout dismissed by user');
+                        showMessage("Checkout cancelled. You can start over anytime.", 'info');
+                        resetUI();
                     },
 
                     onAvailablePaymentMethodsLoad(availablePaymentMethods) {
-                         showMessage(`3. Universal Checkout loaded with ${availablePaymentMethods.length} methods. Ready for payment.`);
+                        toggleLoading(false);
+                        
+                        console.log('💳 Available payment methods loaded:', availablePaymentMethods.map(pm => pm.paymentMethodType));
+                        
+                        showMessage(
+                            `✨ Checkout ready! ${availablePaymentMethods.length} payment methods available.`, 
+                            'success'
+                        );
+                    },
+
+                    // Enhanced error handling per official documentation
+                    onError(error, data) {
+                        console.error('🚨 Primer SDK error:', {
+                            error: error.message,
+                            errorCode: error.errorCode,
+                            data: data
+                        });
+                        
+                        showMessage(`Checkout error: ${error.message}`, 'error');
+                        setTimeout(resetUI, 3000);
+                    },
+
+                    // Additional callbacks per Primer documentation
+                    onPaymentMethodSelect(paymentMethod) {
+                        console.log('💳 Payment method selected:', paymentMethod.paymentMethodType);
+                    },
+
+                    onValidationError(error) {
+                        console.warn('⚠️ Validation error:', error);
+                        showMessage(`Please check your payment details: ${error.message}`, 'warning');
                     }
-                });
+                };
+
+                console.log('🎯 About to call Primer.showUniversalCheckout...');
+                console.log('Client token:', sessionData.clientToken ? 'Available' : 'Missing');
+                console.log('Checkout options:', checkoutOptions);
+                console.log('Final check - Primer.showUniversalCheckout:', Primer.showUniversalCheckout);
+                console.log('Final check - Primer.Primer.showUniversalCheckout:', Primer.Primer?.showUniversalCheckout);
+                
+                // Use the correct nested SDK path
+                const PrimerSDK = Primer.Primer || Primer;
+                console.log('Using SDK:', PrimerSDK);
+                console.log('SDK showUniversalCheckout:', typeof PrimerSDK.showUniversalCheckout);
+                
+                await PrimerSDK.showUniversalCheckout(sessionData.clientToken, checkoutOptions);
 
             } catch (error) {
-                console.error("Fatal Checkout Error:", error);
-                showMessage(`Could not start checkout: ${error.message}`, 'error');
-                toggleLoading(false);
+                console.error("Checkout initialization failed:", error);
+                showMessage(
+                    `Failed to start checkout: ${error.message}. Please try again or contact support if the problem persists.`, 
+                    'error'
+                );
+                resetUI();
             }
         }
-        
-        toggleLoading(false);
-        showMessage("Start the Node.js server (`yarn start`) and click 'Start Secure Checkout'.");
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleLoading(false);
+            
+            // Enhanced debugging for Primer SDK
+            console.log('🔍 Debugging Primer SDK loading...');
+            console.log('typeof Primer:', typeof Primer);
+            console.log('window.Primer:', window.Primer);
+            console.log('Global Primer object:', Primer);
+            
+            if (typeof Primer !== 'undefined') {
+                console.log('✅ Primer SDK loaded successfully');
+                console.log('SDK Version:', Primer.SDK_VERSION);
+                console.log('Available methods:', Object.keys(Primer));
+                console.log('showUniversalCheckout available:', typeof Primer.showUniversalCheckout);
+                
+                // Check nested structure
+                const PrimerSDK = Primer.Primer || Primer;
+                console.log('Actual SDK object:', PrimerSDK);
+                console.log('Actual SDK methods:', Object.keys(PrimerSDK));
+                console.log('Actual showUniversalCheckout:', typeof PrimerSDK.showUniversalCheckout);
+                
+                showMessage("Welcome! Click 'Start Secure Checkout' to begin your purchase.", 'info');
+            } else {
+                console.error('❌ Primer SDK failed to load');
+                showMessage("Primer SDK failed to load. Please refresh the page and try again.", 'error');
+            }
+            
+            // Add event listener for checkout button
+            checkoutButton.addEventListener('click', startCheckout);
+            
+            // Add keyboard shortcut for checkout (Enter key)
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !checkoutButton.disabled && checkoutButtonContainer.style.display !== 'none') {
+                    startCheckout();
+                }
+            });
+        });
+
+        // Global error handler
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+            showMessage('An unexpected error occurred. Please refresh the page and try again.', 'error');
+        });
+
+        // Global unhandled promise rejection handler
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+            showMessage('A network error occurred. Please check your connection and try again.', 'error');
+        });
 
     </script>
 </body>
