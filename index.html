@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primer Universal Checkout Demo</title>
+    <!-- Load Tailwind CSS for styling -->
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+    <!-- Load Primer Web SDK via CDN -->
+    <script src="[https://assets.primer.io/checkout/v2/primer.min.js](https://assets.primer.io/checkout/v2/primer.min.js)"></script>
+    <style>
+        /* Custom styles for the demo */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        .container-card {
+            max-width: 500px;
+            margin: 4rem auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        /* Custom button styling */
+        .primary-btn {
+            background-color: #1f2937; /* Dark gray for Primer theme */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        .primary-btn:hover:not(:disabled) {
+            background-color: #4b5563;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            width: 1.5rem;
+            height: 1.5rem;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* Style for Primer's hosted iframe/UI container */
+        #primer-container {
+            min-height: 400px; /* Ensure space for the checkout form */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="p-4 sm:p-6">
+        <div class="container-card">
+            <h1 class="text-3xl font-bold mb-6 text-gray-800 text-center">
+                Primer Demo Store (Node.js Backend)
+            </h1>
+            
+            <!-- Product Display -->
+            <div id="product-display" class="border border-gray-200 p-4 rounded-lg mb-6">
+                <h2 class="text-xl font-semibold mb-2">Premium Primer Hoodie</h2>
+                <div class="flex justify-between items-center">
+                    <img 
+                        src="[https://placehold.co/100x100/1f2937/ffffff?text=Hoodie](https://placehold.co/100x100/1f2937/ffffff?text=Hoodie)" 
+                        alt="Primer Hoodie" 
+                        class="rounded-lg shadow-md"
+                    >
+                    <div class="text-right">
+                        <p class="text-gray-600">Quantity: 1</p>
+                        <p class="text-2xl font-bold text-gray-900">$49.99</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="checkout-button-container" class="text-center">
+                <button 
+                    id="checkout-button" 
+                    class="primary-btn w-full flex items-center justify-center disabled:opacity-50"
+                    onclick="startCheckout()"
+                >
+                    <span id="button-text">Start Secure Checkout</span>
+                    <div id="loading-spinner" class="spinner hidden ml-2"></div>
+                </button>
+            </div>
+
+            <!-- Primer Checkout UI Container -->
+            <div id="primer-container" class="mt-6">
+                <!-- Primer Universal Checkout UI will be rendered here -->
+            </div>
+
+            <!-- Status and Message Display -->
+            <div id="message-box" class="mt-6 p-4 border-l-4 border-blue-500 bg-blue-50 rounded-lg hidden">
+                <p id="message-text" class="text-sm text-blue-800 font-medium"></p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // ====================================================================
+        // FIREBASE BOILERPLATE (NOT USED FOR PRIMER, BUT MANDATORY STRUCTURE)
+        // ====================================================================
+
+        import { initializeApp } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js)";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js)";
+        import { getFirestore } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js)";
+        import { setLogLevel } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js)";
+        
+        setLogLevel('Debug');
+        let app;
+        let db;
+        let auth;
+        let userId;
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        async function initializeFirebase() {
+            try {
+                if (firebaseConfig) {
+                    app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            userId = user.uid;
+                        } else {
+                            userId = crypto.randomUUID();
+                        }
+                    });
+                } else {
+                    userId = crypto.randomUUID();
+                }
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+                userId = crypto.randomUUID();
+            }
+        }
+
+        initializeFirebase();
+
+        // ====================================================================
+        // PRIMER FRONTEND INTEGRATION LOGIC
+        // ====================================================================
+
+        const checkoutButton = document.getElementById('checkout-button');
+        const buttonText = document.getElementById('button-text');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+
+        /**
+         * Displays a status message to the user.
+         */
+        function showMessage(message, type = 'info') {
+            messageText.textContent = message;
+            messageBox.className = 'mt-6 p-4 border-l-4 rounded-lg';
+            messageBox.classList.remove('hidden');
+            
+            if (type === 'success') {
+                messageBox.classList.add('border-green-500', 'bg-green-50');
+            } else if (type === 'error') {
+                messageBox.classList.add('border-red-500', 'bg-red-50');
+            } else {
+                messageBox.classList.add('border-blue-500', 'bg-blue-50');
+            }
+        }
+
+        /**
+         * Toggles the loading state of the checkout button.
+         */
+        function toggleLoading(isLoading) {
+            checkoutButton.disabled = isLoading;
+            loadingSpinner.classList.toggle('hidden', !isLoading);
+            buttonText.textContent = isLoading ? 'Starting Session...' : 'Start Secure Checkout';
+        }
+
+
+        /**
+         * Fetches the clientToken from the secure Node.js backend.
+         * @returns {Promise<string>} The generated clientToken.
+         */
+        async function getClientTokenFromBackend() {
+            const API_URL = '/create-client-session';
+
+            // The backend handles the retry logic and authentication for the Primer API call.
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                // Optionally send cart data or user ID if needed by the server
+                body: JSON.stringify({ userId: userId, cartId: "cart-123" }), 
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                // The backend has returned an error (e.g., API key missing, Primer API down)
+                throw new Error(data.error || 'Failed to get client session from server.');
+            }
+
+            return data.clientToken;
+        }
+
+        /**
+         * Main function to start the checkout process.
+         */
+        window.startCheckout = async function() {
+            if (typeof Primer === 'undefined') {
+                showMessage("Primer SDK not loaded. Check your network or the server setup.", 'error');
+                return;
+            }
+
+            // Reset UI state
+            toggleLoading(true);
+            document.getElementById('primer-container').innerHTML = ''; // Clear previous UI
+            showMessage("1. Requesting Client Session from Node.js Backend...");
+
+            try {
+                // Step 1: Get the client token from the secure backend
+                const clientToken = await getClientTokenFromBackend();
+                showMessage("2. Client Session created. Initializing Universal Checkout UI...");
+
+                // Hide the original button and product info while checkout is active
+                document.getElementById('checkout-button-container').classList.add('hidden');
+                document.getElementById('product-display').classList.add('hidden');
+
+                // Step 2: Initialize and display Universal Checkout
+                await Primer.showUniversalCheckout(clientToken, {
+                    container: '#primer-container',
+
+                    // --- CALLBACKS ---
+                    
+                    onCheckoutComplete({ payment }) {
+                        showMessage(`Payment Succeeded! Payment ID: ${payment.id}. 
+                        (Fulfillment must be confirmed via Primer Webhook on the server side!)`, 'success');
+                        console.log('Payment Completed:', payment);
+                    },
+
+                    onCheckoutFail(error, { payment }, handler) {
+                        console.error('Checkout Failed:', error, payment);
+                        showMessage(`Checkout Failed: ${error.message || 'Unknown Error'}`, 'error');
+                        handler?.showErrorMessage('Payment failed. Please try again.');
+                    },
+
+                    onDismiss() {
+                        console.log('Checkout dismissed.');
+                        // Restore initial UI state
+                        toggleLoading(false);
+                        document.getElementById('checkout-button-container').classList.remove('hidden');
+                        document.getElementById('product-display').classList.remove('hidden');
+                        showMessage("Click 'Start Secure Checkout' to begin the payment flow.");
+                    },
+
+                    onAvailablePaymentMethodsLoad(availablePaymentMethods) {
+                         showMessage(`3. Universal Checkout loaded with ${availablePaymentMethods.length} methods. Ready for payment.`);
+                    }
+                });
+
+            } catch (error) {
+                console.error("Fatal Checkout Error:", error);
+                showMessage(`Could not start checkout: ${error.message}`, 'error');
+                toggleLoading(false);
+            }
+        }
+        
+        toggleLoading(false);
+        showMessage("Start the Node.js server (`yarn start`) and click 'Start Secure Checkout'.");
+
+    </script>
+</body>
+</html>
