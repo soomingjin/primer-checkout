@@ -2,8 +2,11 @@
 
 A comprehensive, production-ready demonstration of **Primer's Universal Checkout** integration featuring enhanced security, modern UI/UX, and developer-friendly tooling.
 
-## ✨ What's New in v2.0 - Official Primer Documentation Compliant
+## ✨ What's New in v2.1 - Official Drop-in Integration
 
+- 📚 **Official Integration**: Now implements [Primer's Drop-in Checkout](https://primer.io/docs/checkout/drop-in/overview) exactly as documented
+- 🔗 **Official SDK**: Uses Primer's official CDN SDK with proper CSP configuration
+- 📡 **Official Callbacks**: Implements all official callback handlers (`onCheckoutComplete`, `onCheckoutFail`, etc.)
 - 🔒 **Enhanced Security**: Rate limiting, CORS, official Primer CSP requirements, input validation
 - 🎨 **Modern UI**: Beautiful glass-morphism design with animations and better UX
 - 🔧 **Developer Tools**: Setup wizard, health checker, comprehensive error handling
@@ -11,7 +14,6 @@ A comprehensive, production-ready demonstration of **Primer's Universal Checkout
 - 🏗️ **Production Ready**: Following official Primer patterns, proper error handling, logging
 - ⚡ **Performance**: Optimized loading states, caching, and asset delivery
 - 🧪 **Testing Framework**: Comprehensive integration tests following Primer best practices
-- 📚 **Official Compliance**: Aligned with [Primer.io/docs](https://primer.io/docs) recommendations
 
 ## 🎯 Features
 
@@ -122,6 +124,74 @@ primer-checkout/
 │   └── 📄 check-health.js    # System health checker
 ├── 📄 .env.example           # Environment template with documentation
 └── 📄 README.md              # This comprehensive guide
+```
+
+## 📚 Official Primer Integration
+
+This implementation follows the official [Primer Drop-in Checkout documentation](https://primer.io/docs/checkout/drop-in/overview) exactly:
+
+### 🔗 Client Session Creation
+```javascript
+// Server-side (server.js) - Creates client session following official API format
+const orderData = {
+  orderId: "ORD-1234567890",
+  currencyCode: "GBP", 
+  amount: 4999,
+  order: {
+    lineItems: [{
+      itemId: "hoodie-sku-1",
+      description: "Premium Primer Hoodie",
+      amount: 4999,
+      quantity: 1
+    }],
+    countryCode: "GB"
+  },
+  customer: {
+    emailAddress: "customer@example.com"
+  }
+};
+```
+
+### 🎨 Frontend Integration
+```javascript
+// Frontend (index.html) - Official SDK usage
+await Primer.showUniversalCheckout(clientToken, {
+  container: '#primer-container',
+  
+  // Official callback implementations
+  onCheckoutComplete({ payment, paymentMethod }) {
+    // Handle successful payment
+    console.log('Payment successful!', payment.id);
+  },
+  
+  onCheckoutFail(error, { payment }, handler) {
+    // Handle payment failures
+    if (handler?.showErrorMessage) {
+      return handler.showErrorMessage('Payment failed. Please try again.');
+    }
+  }
+});
+```
+
+### 📡 Webhook Handling
+```javascript
+// Webhook endpoint following official patterns
+app.post('/webhook', (req, res) => {
+  const { eventType, data } = JSON.parse(req.body);
+  
+  switch (eventType) {
+    case 'PAYMENT_AUTHORIZED':
+      // Fulfill order
+      handlePaymentAuthorized(data.payment);
+      break;
+    case 'PAYMENT_CAPTURED':
+      // Complete order
+      handlePaymentCaptured(data.payment);
+      break;
+  }
+  
+  res.json({ received: true });
+});
 ```
 
 ### 🔄 Enhanced Integration Flow

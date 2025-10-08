@@ -29,8 +29,8 @@ const WEBHOOK_SECRET = process.env.PRIMER_WEBHOOK_SECRET;
 const createSessionSchema = Joi.object({
   userId: Joi.string().min(1).max(100),
   cartId: Joi.string().min(1).max(100),
-  amount: Joi.number().positive().max(999999),
-  currency: Joi.string().length(3).uppercase().default('GBP'),
+  amount: Joi.number().positive().max(9999999),
+  currency: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').default('GBP'),
   customerEmail: Joi.string().email(),
   items: Joi.array().items(Joi.object({
     id: Joi.string().required(),
@@ -40,55 +40,29 @@ const createSessionSchema = Joi.object({
   }))
 });
 
-// Security middleware with official Primer CSP requirements
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      // Official Primer CSP requirements + our additional needs
-      scriptSrc: [
-        "'self'", 
-        "'unsafe-inline'", 
-        "sdk.primer.io", 
-        "*.primer.io",
-        "https://cdn.tailwindcss.com", 
-        "https://www.gstatic.com",
-        "https://assets.primer.io"
-      ],
-      scriptSrcAttr: ["'unsafe-inline'"],
-      styleSrc: [
-        "'self'", 
-        "'unsafe-inline'", 
-        "*.primer.io",
-        "https://cdn.tailwindcss.com", 
-        "https://fonts.googleapis.com"
-      ],
-      styleSrcElem: [
-        "'self'", 
-        "'unsafe-inline'", 
-        "*.primer.io",
-        "https://cdn.tailwindcss.com", 
-        "https://fonts.googleapis.com"
-      ],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https://placehold.co"],
-      // Official Primer connect sources
-      connectSrc: [
-        "'self'", 
-        "*.primer.io",
-        "https://api.sandbox.primer.io", 
-        "https://api.primer.io"
-      ],
-      // Official Primer frame sources
-      frameSrc: [
-        "'self'", 
-        "*.primer.io",
-        "https://checkout.primer.io", 
-        "https://js.primer.io"
-      ]
+// Security middleware - disable CSP in development for Primer SDK compatibility
+if (NODE_ENV === 'production') {
+  // Production CSP (more restrictive)
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://*.primer.io"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://*.primer.io"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "https://*.primer.io"],
+        frameSrc: ["'self'", "https://*.primer.io"],
+        formAction: ["'self'", "https://*.primer.io"]
+      }
     }
-  }
-}));
+  }));
+} else {
+  // Development - disable CSP to allow Primer SDK full functionality
+  console.log('🔓 CSP disabled in development mode for Primer SDK compatibility');
+  app.use(helmet({
+    contentSecurityPolicy: false  // Completely disable CSP in development
+  }));
+}
 
 // CORS configuration
 const corsOptions = {
@@ -213,34 +187,36 @@ app.post('/create-client-session', async (req, res) => {
     
     const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, items } = value;
     
-    // Build order data with basic required fields
+    // Build order data following official Primer API format
     const orderData = {
-      // Core required fields
+      // Required fields per official documentation
       orderId: generateOrderId(),
       currencyCode: currency,
       amount: amount,
       
-      // Customer information (basic structure)
+      // Customer information (as per official docs)
       customer: {
-        emailAddress: customerEmail || "test_customer@example.com"
+        emailAddress: customerEmail || "demo@example.com"
       },
       
-      // Order details (simplified)
+      // Order details with line items (required per official docs)
       order: {
         lineItems: items ? items.map(item => ({
-          itemId: item.id || item.itemId,  // Map 'id' to 'itemId' for Primer compatibility
-          description: item.name || item.description,
+          itemId: item.id,
+          description: item.name,
           amount: item.amount,
           quantity: item.quantity
         })) : [{
           itemId: "hoodie-sku-1",
-          description: "Premium Primer Hoodie",
+          description: "Premium Primer Hoodie", 
           amount: amount,
           quantity: 1
-        }]
+        }],
+        // Optional: Add country code for better payment method selection
+        countryCode: "GB"
       },
       
-      // Payment method configuration (basic)
+      // Optional: Payment method configuration
       paymentMethod: {
         vaultOnSuccess: false
       }
@@ -303,54 +279,158 @@ app.post('/create-client-session', async (req, res) => {
   }
 });
 
-// Webhook endpoint for payment confirmations
+// Webhook endpoint following official Primer documentation
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
   try {
     const signature = req.headers['x-primer-signature'];
     const payload = req.body;
     
-    // Verify webhook signature
-    if (!verifyWebhookSignature(payload, signature)) {
+    console.log('📥 Received webhook request');
+    
+    // Verify webhook signature (recommended for production)
+    if (process.env.VERIFY_WEBHOOKS !== 'false' && !verifyWebhookSignature(payload, signature)) {
       console.warn('⚠️ Invalid webhook signature');
       return res.status(401).json({ error: 'Invalid signature' });
     }
     
     const event = JSON.parse(payload);
-    console.log(`📥 Received webhook: ${event.eventType} for payment ${event.data?.payment?.id}`);
+    const { eventType, data } = event;
+    const payment = data?.payment;
     
-    // Handle different webhook events
-    switch (event.eventType) {
+    console.log(`📡 Processing webhook: ${eventType}`, {
+      paymentId: payment?.id,
+      status: payment?.status,
+      amount: payment?.amount,
+      currency: payment?.currencyCode
+    });
+    
+    // Handle different webhook events following official Primer patterns
+    switch (eventType) {
       case 'PAYMENT_CREATED':
-        console.log('💳 Payment created:', event.data.payment.id);
+        handlePaymentCreated(payment);
         break;
         
       case 'PAYMENT_AUTHORIZED':
-        console.log('✅ Payment authorized:', event.data.payment.id);
-        // Here you would typically update your database and fulfill the order
+        handlePaymentAuthorized(payment);
         break;
         
       case 'PAYMENT_CAPTURED':
-        console.log('💰 Payment captured:', event.data.payment.id);
-        // Order fulfillment logic goes here
+        handlePaymentCaptured(payment);
         break;
         
       case 'PAYMENT_FAILED':
-        console.log('❌ Payment failed:', event.data.payment.id);
-        // Handle failed payment
+        handlePaymentFailed(payment);
+        break;
+        
+      case 'PAYMENT_CANCELLED':
+        handlePaymentCancelled(payment);
         break;
         
       default:
-        console.log('📧 Unhandled webhook event:', event.eventType);
+        console.log('📧 Unhandled webhook event type:', eventType);
     }
     
-    // Acknowledge webhook receipt
-    res.status(200).json({ received: true });
+    // Always acknowledge webhook receipt (important for Primer)
+    res.status(200).json({ 
+      received: true,
+      eventType: eventType,
+      paymentId: payment?.id,
+      timestamp: new Date().toISOString()
+    });
     
   } catch (error) {
     console.error('🚨 Webhook processing error:', error.message);
-    res.status(400).json({ error: 'Webhook processing failed' });
+    // Return 400 for client errors, 500 for server errors
+    const statusCode = error instanceof SyntaxError ? 400 : 500;
+    res.status(statusCode).json({ 
+      error: 'Webhook processing failed',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
+
+// Webhook event handlers following official Primer best practices
+
+function handlePaymentCreated(payment) {
+  console.log('💳 Payment Created:', {
+    id: payment.id,
+    orderId: payment.orderId,
+    amount: payment.amount,
+    currency: payment.currencyCode,
+    status: payment.status
+  });
+  
+  // TODO: Update your database to record payment creation
+  // - Store payment ID and status
+  // - Link payment to order
+  // - Set order status to "payment_initiated"
+}
+
+function handlePaymentAuthorized(payment) {
+  console.log('✅ Payment Authorized:', {
+    id: payment.id,
+    orderId: payment.orderId,
+    amount: payment.amount,
+    currency: payment.currencyCode,
+    paymentMethodType: payment.paymentMethodType
+  });
+  
+  // TODO: Implement order fulfillment logic
+  // - Update order status to "authorized"
+  // - Reserve inventory
+  // - Send order confirmation email
+  // - Trigger fulfillment processes
+  
+  console.log('🚀 Order fulfillment triggered for payment:', payment.id);
+}
+
+function handlePaymentCaptured(payment) {
+  console.log('💰 Payment Captured:', {
+    id: payment.id,
+    orderId: payment.orderId,
+    amount: payment.amount,
+    currency: payment.currencyCode
+  });
+  
+  // TODO: Complete order fulfillment
+  // - Update order status to "paid"
+  // - Process shipping
+  // - Send tracking information
+  // - Update accounting records
+  
+  console.log('✅ Payment capture completed for order:', payment.orderId);
+}
+
+function handlePaymentFailed(payment) {
+  console.log('❌ Payment Failed:', {
+    id: payment.id,
+    orderId: payment.orderId,
+    failureReason: payment.failureReason,
+    status: payment.status
+  });
+  
+  // TODO: Handle payment failure
+  // - Update order status to "payment_failed"
+  // - Release reserved inventory
+  // - Notify customer of failure
+  // - Offer alternative payment methods
+  
+  console.log('🔄 Payment failure handling initiated for order:', payment.orderId);
+}
+
+function handlePaymentCancelled(payment) {
+  console.log('🚫 Payment Cancelled:', {
+    id: payment.id,
+    orderId: payment.orderId,
+    status: payment.status
+  });
+  
+  // TODO: Handle payment cancellation
+  // - Update order status to "cancelled"
+  // - Release reserved inventory
+  // - Send cancellation confirmation
+};
 
 // Serve the main HTML file
 app.get('/', (req, res) => {

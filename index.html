@@ -9,9 +9,12 @@
     <!-- Load Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Load Primer Web SDK locally -->
-    <script src="/Primer.js"></script>
-    <link rel="stylesheet" href="/Checkout.css">
+    <!-- Load Primer Web SDK from official CDN -->
+    <link rel="stylesheet" href="https://sdk.primer.io/web/v2.57.5/Checkout.css" />
+    <script
+        src="https://sdk.primer.io/web/v2.57.5/Primer.min.js"
+        crossorigin="anonymous"
+    ></script>
     
     <!-- Custom fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -216,13 +219,38 @@
                                 <span class="feature-badge">🚚 Free Shipping</span>
                                 <span class="feature-badge">↩️ Easy Returns</span>
                             </div>
-                            <div class="flex items-center justify-center sm:justify-between">
+                            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
                                 <div class="text-gray-600">
                                     <span class="block text-sm">Quantity: 1</span>
                                     <span class="block text-sm">Size: Medium</span>
                                 </div>
-                                <div class="price-tag ml-4">
-                                    £49.99
+                                
+                                <!-- Payment Configuration -->
+                                <div class="flex flex-col gap-2">
+                                    <div class="flex gap-2 items-center">
+                                        <label for="amount-input" class="text-sm font-medium text-gray-700">Amount:</label>
+                                        <input 
+                                            type="number" 
+                                            id="amount-input" 
+                                            min="1" 
+                                            max="99999" 
+                                            step="0.01" 
+                                            value="49.99"
+                                            class="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                        <select 
+                                            id="currency-select" 
+                                            class="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                            <option value="GBP">GBP (£)</option>
+                                            <option value="USD">USD ($)</option>
+                                            <option value="EUR">EUR (€)</option>
+                                            <option value="JPY">JPY (¥)</option>
+                                        </select>
+                                    </div>
+                                    <div class="price-tag text-center">
+                                        <span id="display-price">£49.99</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -299,12 +327,100 @@
         // State management
         let currentSession = null;
         let userId = generateUserId();
+        
+        // Payment configuration
+        let paymentConfig = {
+            amount: 49.99,
+            currency: 'GBP'
+        };
 
         /**
          * Generate a unique user ID
          */
         function generateUserId() {
             return `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        }
+
+        /**
+         * Format amount for display
+         */
+        function formatAmount(amount, currency) {
+            if (!amount) return '0.00 ' + (currency || 'GBP');
+            
+            // Amount is in pence/cents, convert to major currency unit
+            const majorAmount = (amount / 100).toFixed(2);
+            
+            // Currency symbols
+            const symbols = {
+                'GBP': '£',
+                'USD': '$',
+                'EUR': '€',
+                'JPY': '¥'
+            };
+            
+            const symbol = symbols[currency] || currency || 'GBP';
+            return `${symbol}${majorAmount}`;
+        }
+
+        /**
+         * Format amount for display (from major currency units)
+         */
+        function formatDisplayAmount(amount, currency) {
+            if (!amount) return '0.00 ' + (currency || 'GBP');
+            
+            const majorAmount = parseFloat(amount).toFixed(2);
+            
+            // Currency symbols
+            const symbols = {
+                'GBP': '£',
+                'USD': '$',
+                'EUR': '€',
+                'JPY': '¥'
+            };
+            
+            const symbol = symbols[currency] || currency || 'GBP';
+            return `${symbol}${majorAmount}`;
+        }
+
+        /**
+         * Update price display
+         */
+        function updatePriceDisplay() {
+            const amountInput = document.getElementById('amount-input');
+            const currencySelect = document.getElementById('currency-select');
+            const displayPrice = document.getElementById('display-price');
+            
+            if (amountInput && currencySelect && displayPrice) {
+                const amount = parseFloat(amountInput.value) || 0;
+                const currency = currencySelect.value;
+                
+                // Update global config
+                paymentConfig.amount = amount;
+                paymentConfig.currency = currency;
+                
+                // Update display
+                displayPrice.textContent = formatDisplayAmount(amount, currency);
+            }
+        }
+
+        /**
+         * Initialize payment controls
+         */
+        function initializePaymentControls() {
+            const amountInput = document.getElementById('amount-input');
+            const currencySelect = document.getElementById('currency-select');
+            
+            if (amountInput) {
+                amountInput.addEventListener('input', updatePriceDisplay);
+                amountInput.addEventListener('change', updatePriceDisplay);
+            }
+            
+            if (currencySelect) {
+                currencySelect.addEventListener('change', updatePriceDisplay);
+            }
+            
+            // Initial update
+            updatePriceDisplay();
         }
 
         /**
@@ -380,16 +496,19 @@
          * Enhanced API call to get client token with better error handling
          */
         async function getClientTokenFromBackend() {
+            // Convert amount from major currency units to minor units (pence/cents)
+            const amountInMinorUnits = Math.round(paymentConfig.amount * 100);
+            
             const requestData = {
                 userId: userId,
                 cartId: `cart-${Date.now()}`,
-                amount: 4999,
-                currency: 'GBP',
+                amount: amountInMinorUnits,
+                currency: paymentConfig.currency,
                 customerEmail: 'demo@example.com',
                 items: [{
                     id: 'hoodie-sku-1',
                     name: 'Premium Primer Hoodie',
-                    amount: 4999,
+                    amount: amountInMinorUnits,
                     quantity: 1
                 }]
             };
@@ -423,174 +542,164 @@
         }
 
         /**
-         * Main checkout function with enhanced error handling
+         * Main checkout function following official Primer documentation
          */
         async function startCheckout() {
-            // Enhanced validation checks with debugging
-            console.log('🚀 Starting checkout process...');
-            console.log('typeof Primer at checkout time:', typeof Primer);
-            console.log('Primer object at checkout time:', Primer);
+            console.log('🚀 Starting Primer Universal Checkout...');
             
-            if (typeof Primer === 'undefined') {
-                console.error('❌ Primer is undefined at checkout time');
+            // Validate Primer SDK is loaded (check both global and window)
+            const PrimerSDK = window.Primer || Primer;
+            if (typeof PrimerSDK === 'undefined') {
+                console.error('❌ Primer SDK not loaded');
+                console.log('Debugging SDK availability:');
+                console.log('- typeof Primer:', typeof Primer);
+                console.log('- typeof window.Primer:', typeof window.Primer);
+                console.log('- Available window properties:', Object.keys(window).filter(key => key.toLowerCase().includes('primer')));
                 showMessage("Primer SDK not loaded. Please check your internet connection and try again.", 'error');
                 return;
             }
             
-            console.log('Available Primer methods at checkout:', Object.keys(Primer));
-            console.log('showUniversalCheckout function:', Primer.showUniversalCheckout);
-            console.log('typeof showUniversalCheckout:', typeof Primer.showUniversalCheckout);
-            
-            // Check if Primer SDK methods are nested under Primer.Primer
-            console.log('Checking nested Primer.Primer:', Primer.Primer);
-            console.log('typeof Primer.Primer:', typeof Primer.Primer);
-            if (Primer.Primer) {
-                console.log('Nested Primer methods:', Object.keys(Primer.Primer));
-                console.log('Nested showUniversalCheckout:', typeof Primer.Primer.showUniversalCheckout);
-            }
+            console.log('✅ Using Primer SDK:', PrimerSDK);
+            console.log('SDK Methods available:', Object.keys(PrimerSDK));
 
             try {
-                // Reset state
-                toggleLoading(true, 'Initializing checkout...');
+                // Step 1: Show loading state
+                toggleLoading(true, 'Creating secure session...');
                 primerContainer.innerHTML = '';
                 showMessage("Connecting to secure payment server...", 'info');
 
-                // Step 1: Get client session
-                toggleLoading(true, 'Creating secure session...');
+                // Step 2: Get client token from backend
                 const sessionData = await getClientTokenFromBackend();
                 currentSession = sessionData;
                 
+                console.log('✅ Client session created:', {
+                    orderId: sessionData.orderId,
+                    amount: sessionData.amount,
+                    currency: sessionData.currency
+                });
+                
                 showMessage("Secure session created successfully!", 'success');
                 
-                // Step 2: Hide product display and show checkout
+                // Step 3: Hide product display and prepare checkout UI
                 productDisplay.classList.add('hidden');
                 checkoutButtonContainer.classList.add('hidden');
-                
                 toggleLoading(true, 'Loading payment methods...');
 
-                // Step 3: Initialize Primer Universal Checkout following official patterns
+                // Step 4: Initialize Primer Universal Checkout with official options
                 const checkoutOptions = {
+                    // Container selector as per official docs
                     container: '#primer-container',
                     
-                    // Enhanced styling options per Primer documentation
+                    // Debug mode and settings to avoid iframe conflicts
+                    debug: true,
+                    
+                    // Theme configuration following official documentation
                     theme: {
                         colorPrimary: '#1f2937',
                         colorSecondary: '#6b7280',
                         borderRadius: '0.75rem',
                         spacingUnit: '16px',
-                        // Additional theme options per official docs
                         fontFamily: 'Inter, sans-serif',
                         colorBackground: '#ffffff'
                     },
 
-                    // Payment flow configuration per official docs
+                    // Payment flow as per official docs
                     paymentFlow: 'DEFAULT',
                     
-                    // Enhanced options per Primer documentation
+                    // Additional options per official documentation
                     options: {
-                        // Enable payment method options as per docs
                         allowCardholderNameInput: true,
                         allowSavePaymentMethod: true,
-                        // Enhanced validation
                         validateZipCode: true
                     },
 
-                    // Official callback patterns from Primer documentation
-                    onCheckoutComplete(checkoutData) {
-                        const { payment, paymentMethod } = checkoutData;
-                        
-                        console.log('✅ Payment completed successfully:', {
+                    /**
+                     * Official onCheckoutComplete callback
+                     * Triggered when payment is successfully completed
+                     */
+                    onCheckoutComplete({ payment, paymentMethod }) {
+                        console.log('✅ Payment completed successfully!', {
                             paymentId: payment?.id,
                             paymentMethodType: paymentMethod?.paymentMethodType,
                             amount: payment?.amount,
                             currency: payment?.currencyCode
                         });
                         
+                        // Show success message
                         showMessage(
-                            `🎉 Payment successful! Transaction ID: ${payment?.id}. Order confirmation will be sent to your email.`, 
+                            `🎉 Payment successful! Transaction ID: ${payment?.id}`, 
                             'success', 
                             false
                         );
                         
-                        // Success state with order summary
-                        setTimeout(() => {
-                            primerContainer.innerHTML = `
-                                <div class="text-center py-12">
-                                    <div class="text-6xl mb-4">🎉</div>
-                                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h3>
-                                    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                                        <p class="text-sm text-green-800">
-                                            <strong>Payment ID:</strong> ${payment?.id || 'N/A'}<br>
-                                            <strong>Method:</strong> ${paymentMethod?.paymentMethodType || 'N/A'}<br>
-                                            <strong>Amount:</strong> ${((payment?.amount || 0) / 100).toFixed(2)} ${payment?.currencyCode || 'GBP'}
-                                        </p>
-                                    </div>
-                                    <p class="text-gray-600 mb-6">Thank you for your purchase. Order confirmation has been sent.</p>
-                                    <button id="new-order-btn" class="primary-btn">Start New Order</button>
-                                </div>
-                            `;
-                            
-                            // Add event listener to the dynamically created button
-                            const newOrderBtn = document.getElementById('new-order-btn');
-                            if (newOrderBtn) {
-                                newOrderBtn.addEventListener('click', resetUI);
-                            }
-                        }, 2000);
+                        // Display success screen following official patterns
+                        displaySuccessScreen(payment, paymentMethod);
                     },
 
-                    onCheckoutFail(error, checkoutData, handler) {
-                        const { payment, paymentMethod } = checkoutData || {};
-                        
+                    /**
+                     * Official onCheckoutFail callback
+                     * Triggered when payment fails or checkout encounters an error
+                     */
+                    onCheckoutFail(error, { payment }, handler) {
                         console.error('❌ Checkout failed:', {
                             error: error.message,
                             errorCode: error.errorCode,
-                            paymentId: payment?.id,
-                            paymentMethodType: paymentMethod?.paymentMethodType
+                            paymentId: payment?.id
                         });
                         
-                        // Enhanced error messaging per Primer patterns
+                        // Handle error messaging as per official documentation
                         let errorMessage = 'Payment failed. Please try again.';
                         
-                        // Handle specific error types as per Primer documentation
+                        // Map specific error codes to user-friendly messages
                         if (error.errorCode) {
-                            switch (error.errorCode) {
-                                case 'CARD_DECLINED':
-                                    errorMessage = 'Your card was declined. Please try a different payment method.';
-                                    break;
-                                case 'INSUFFICIENT_FUNDS':
-                                    errorMessage = 'Insufficient funds. Please try a different payment method.';
-                                    break;
-                                case 'CARD_EXPIRED':
-                                    errorMessage = 'Your card has expired. Please use a different card.';
-                                    break;
-                                case 'INVALID_CARD_NUMBER':
-                                    errorMessage = 'Invalid card number. Please check your card details.';
-                                    break;
-                                default:
-                                    errorMessage = `Payment failed: ${error.message || 'Unknown error occurred'}`;
-                            }
+                            const errorMessages = {
+                                'CARD_DECLINED': 'Your card was declined. Please try a different payment method.',
+                                'INSUFFICIENT_FUNDS': 'Insufficient funds. Please try a different payment method.',
+                                'CARD_EXPIRED': 'Your card has expired. Please use a different card.',
+                                'INVALID_CARD_NUMBER': 'Invalid card number. Please check your card details.',
+                                'PAYMENT_FAILED': 'Payment processing failed. Please try again.',
+                                'NETWORK_ERROR': 'Network error. Please check your connection and try again.'
+                            };
+                            errorMessage = errorMessages[error.errorCode] || `Payment failed: ${error.message}`;
                         }
                         
                         showMessage(errorMessage, 'error');
                         
-                        // Use handler to show inline error as per official docs
-                        if (handler?.showErrorMessage) {
-                            handler.showErrorMessage(errorMessage);
+                        // Use handler if provided (as per official docs)
+                        if (handler && !handler) {
+                            // Handler is undefined - no action required from us
+                            return;
                         }
                         
+                        if (handler?.showErrorMessage) {
+                            // Show error message through Primer's handler
+                            return handler.showErrorMessage(errorMessage);
+                        }
+                        
+                        // Reset UI after delay
                         setTimeout(resetUI, 5000);
                     },
 
+                    /**
+                     * Optional callback: onDismiss
+                     * Triggered when user cancels/dismisses the checkout
+                     */
                     onDismiss() {
                         console.log('🚪 Checkout dismissed by user');
                         showMessage("Checkout cancelled. You can start over anytime.", 'info');
                         resetUI();
                     },
 
+                    /**
+                     * Optional callback: onAvailablePaymentMethodsLoad
+                     * Triggered when payment methods are loaded and ready
+                     */
                     onAvailablePaymentMethodsLoad(availablePaymentMethods) {
                         toggleLoading(false);
                         
-                        console.log('💳 Available payment methods loaded:', availablePaymentMethods.map(pm => pm.paymentMethodType));
+                        console.log('💳 Available payment methods loaded:', 
+                            availablePaymentMethods.map(pm => pm.paymentMethodType)
+                        );
                         
                         showMessage(
                             `✨ Checkout ready! ${availablePaymentMethods.length} payment methods available.`, 
@@ -598,7 +707,10 @@
                         );
                     },
 
-                    // Enhanced error handling per official documentation
+                    /**
+                     * Optional callback: onError
+                     * Triggered for SDK-level errors
+                     */
                     onError(error, data) {
                         console.error('🚨 Primer SDK error:', {
                             error: error.message,
@@ -610,32 +722,37 @@
                         setTimeout(resetUI, 3000);
                     },
 
-                    // Additional callbacks per Primer documentation
+                    /**
+                     * Optional callback: onPaymentMethodSelect
+                     * Triggered when user selects a payment method
+                     */
                     onPaymentMethodSelect(paymentMethod) {
                         console.log('💳 Payment method selected:', paymentMethod.paymentMethodType);
                     },
 
+                    /**
+                     * Optional callback: onValidationError
+                     * Triggered for validation errors
+                     */
                     onValidationError(error) {
                         console.warn('⚠️ Validation error:', error);
                         showMessage(`Please check your payment details: ${error.message}`, 'warning');
                     }
                 };
 
-                console.log('🎯 About to call Primer.showUniversalCheckout...');
-                console.log('Client token:', sessionData.clientToken ? 'Available' : 'Missing');
-                console.log('Checkout options:', checkoutOptions);
-                console.log('Final check - Primer.showUniversalCheckout:', Primer.showUniversalCheckout);
-                console.log('Final check - Primer.Primer.showUniversalCheckout:', Primer.Primer?.showUniversalCheckout);
+                console.log('🎯 Initializing Primer Universal Checkout...');
+                console.log('Client token:', sessionData.clientToken ? 'Present' : 'Missing');
                 
-                // Use the correct nested SDK path
-                const PrimerSDK = Primer.Primer || Primer;
-                console.log('Using SDK:', PrimerSDK);
-                console.log('SDK showUniversalCheckout:', typeof PrimerSDK.showUniversalCheckout);
-                
-                await PrimerSDK.showUniversalCheckout(sessionData.clientToken, checkoutOptions);
+                // Initialize Universal Checkout following official documentation
+                const universalCheckout = await PrimerSDK.showUniversalCheckout(
+                    sessionData.clientToken, 
+                    checkoutOptions
+                );
+
+                console.log('✅ Universal Checkout initialized successfully');
 
             } catch (error) {
-                console.error("Checkout initialization failed:", error);
+                console.error("❌ Checkout initialization failed:", error);
                 showMessage(
                     `Failed to start checkout: ${error.message}. Please try again or contact support if the problem persists.`, 
                     'error'
@@ -644,49 +761,115 @@
             }
         }
 
-        // Initialize the page
+        /**
+         * Display success screen following official Primer patterns
+         */
+        function displaySuccessScreen(payment, paymentMethod) {
+            setTimeout(() => {
+                primerContainer.innerHTML = `
+                    <div class="text-center py-12">
+                        <div class="text-6xl mb-4">🎉</div>
+                        <h3 class="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h3>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                            <p class="text-sm text-green-800">
+                                <strong>Payment ID:</strong> ${payment?.id || 'N/A'}<br>
+                                <strong>Method:</strong> ${paymentMethod?.paymentMethodType || 'N/A'}<br>
+                                <strong>Amount:</strong> ${formatAmount(payment?.amount || currentSession?.amount || 4999, payment?.currencyCode || currentSession?.currency || 'GBP')}<br>
+                                <strong>Order ID:</strong> ${currentSession?.orderId || 'N/A'}
+                            </p>
+                        </div>
+                        <p class="text-gray-600 mb-6">Thank you for your purchase! Order confirmation will be sent to your email.</p>
+                        <button id="new-order-btn" class="primary-btn">Start New Order</button>
+                    </div>
+                `;
+                
+                // Add event listener to the new order button
+                const newOrderBtn = document.getElementById('new-order-btn');
+                if (newOrderBtn) {
+                    newOrderBtn.addEventListener('click', resetUI);
+                }
+            }, 1500);
+        }
+
+        // Initialize the page following official Primer patterns
         document.addEventListener('DOMContentLoaded', function() {
             toggleLoading(false);
             
-            // Enhanced debugging for Primer SDK
-            console.log('🔍 Debugging Primer SDK loading...');
-            console.log('typeof Primer:', typeof Primer);
-            console.log('window.Primer:', window.Primer);
-            console.log('Global Primer object:', Primer);
+            console.log('🚀 Initializing Primer Checkout Demo...');
+            console.log('Window object keys:', Object.keys(window));
+            console.log('Checking for Primer...', typeof window.Primer);
             
-            if (typeof Primer !== 'undefined') {
-                console.log('✅ Primer SDK loaded successfully');
-                console.log('SDK Version:', Primer.SDK_VERSION);
-                console.log('Available methods:', Object.keys(Primer));
-                console.log('showUniversalCheckout available:', typeof Primer.showUniversalCheckout);
+            // Wait a moment for scripts to fully load
+            setTimeout(() => {
+                console.log('🔍 Checking Primer SDK after delay...');
+                console.log('typeof Primer:', typeof Primer);
+                console.log('window.Primer:', window.Primer);
                 
-                // Check nested structure
-                const PrimerSDK = Primer.Primer || Primer;
-                console.log('Actual SDK object:', PrimerSDK);
-                console.log('Actual SDK methods:', Object.keys(PrimerSDK));
-                console.log('Actual showUniversalCheckout:', typeof PrimerSDK.showUniversalCheckout);
-                
-                showMessage("Welcome! Click 'Start Secure Checkout' to begin your purchase.", 'info');
-            } else {
-                console.error('❌ Primer SDK failed to load');
-                showMessage("Primer SDK failed to load. Please refresh the page and try again.", 'error');
-            }
+                // Check if Primer SDK is loaded
+                if (typeof Primer !== 'undefined' || typeof window.Primer !== 'undefined') {
+                    const PrimerSDK = Primer || window.Primer;
+                    console.log('✅ Primer SDK loaded successfully');
+                    console.log('SDK Version:', PrimerSDK.SDK_VERSION || 'Unknown');
+                    console.log('SDK Methods:', Object.keys(PrimerSDK));
+                    
+                    showMessage("Welcome! Click 'Start Secure Checkout' to begin your purchase.", 'info');
+                } else {
+                    console.error('❌ Primer SDK failed to load');
+                    console.log('Available scripts:');
+                    Array.from(document.scripts).forEach(script => {
+                        console.log('- Script src:', script.src);
+                    });
+                    showMessage("Primer SDK failed to load. Please refresh the page and try again.", 'error');
+                }
+            }, 1000);
+            
+            // Initialize payment controls
+            initializePaymentControls();
             
             // Add event listener for checkout button
             checkoutButton.addEventListener('click', startCheckout);
             
             // Add keyboard shortcut for checkout (Enter key)
             document.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && !checkoutButton.disabled && checkoutButtonContainer.style.display !== 'none') {
+                if (e.key === 'Enter' && !checkoutButton.disabled && 
+                    !checkoutButtonContainer.classList.contains('hidden')) {
                     startCheckout();
                 }
             });
+            
+            console.log('🎯 Primer Checkout Demo initialized successfully');
         });
 
-        // Global error handler
+        // Global error handler with CSP-specific handling
         window.addEventListener('error', function(e) {
             console.error('Global error:', e.error);
+            
+            // Check for CSP-related errors
+            if (e.message && e.message.includes('Content Security Policy')) {
+                console.log('🚨 CSP Error detected:', e.message);
+                showMessage('Content Security Policy conflict detected. This is typically from Primer\'s servers and is safe to ignore during development.', 'warning');
+                return;
+            }
+            
             showMessage('An unexpected error occurred. Please refresh the page and try again.', 'error');
+        });
+
+        // Security Policy Violation handler
+        document.addEventListener('securitypolicyviolation', function(e) {
+            console.log('🛡️ CSP Violation:', {
+                directive: e.violatedDirective,
+                blockedURI: e.blockedURI,
+                documentURI: e.documentURI,
+                originalPolicy: e.originalPolicy
+            });
+            
+            // Don't show user error for frame-ancestors violations from Primer
+            if (e.violatedDirective === 'frame-ancestors' && e.blockedURI.includes('primer.io')) {
+                console.log('✅ Primer frame-ancestors violation is expected and safe to ignore');
+                return;
+            }
+            
+            showMessage(`CSP Violation: ${e.violatedDirective}. This may affect functionality.`, 'warning');
         });
 
         // Global unhandled promise rejection handler
