@@ -186,3 +186,4 @@ Thumbs.db
 # These are copied from node_modules for local serving
 !Primer.js
 !Checkout.css
+.vercel

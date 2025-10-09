@@ -1,16 +1,5 @@
 {
   "version": 2,
-  "name": "primer-checkout-demo",
-  "builds": [
-    {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "public/**/*",
-      "use": "@vercel/static"
-    }
-  ],
   "routes": [
     {
       "src": "/health",
@@ -27,6 +16,17 @@
     {
       "src": "/(.*)",
       "dest": "/public/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://sdk.primer.io https://cdn.tailwindcss.com https://x.klarnacdn.net https://*.paypal.com https://*.paypalobjects.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://*.primer.io https://fonts.googleapis.com; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: https: https://*.paypal.com https://*.paypalobjects.com https://placehold.co; frame-src https://*.primer.io https://*.3dsecure.io https://*.paypal.com; connect-src 'self' https://*.primer.io https://x.klarna.com https://*.paypal.com https://*.stripe.com; object-src 'none'; base-uri 'self'; form-action 'self';"
+        }
+      ]
     }
   ],
   "functions": {
