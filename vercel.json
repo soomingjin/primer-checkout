@@ -1,21 +1,17 @@
 {
   "version": 2,
-  "routes": [
+  "rewrites": [
     {
-      "src": "/health",
-      "dest": "/api/health"
+      "source": "/health",
+      "destination": "/api/health"
     },
     {
-      "src": "/create-client-session",
-      "dest": "/api/create-client-session"
+      "source": "/create-client-session",
+      "destination": "/api/create-client-session"
     },
     {
-      "src": "/webhook",
-      "dest": "/api/webhook"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
+      "source": "/webhook",
+      "destination": "/api/webhook"
     }
   ],
   "headers": [
