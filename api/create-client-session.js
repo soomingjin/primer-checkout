@@ -29,7 +29,7 @@ export default async function handler(req, res) {
       return errorResponse(res, 400, 'Invalid request data', error.details.map(d => d.message));
     }
     
-    const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, items } = value;
+    const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, customerId, items } = value;
     
     // Build order data following official Primer API format
     const orderData = {
@@ -37,6 +37,9 @@ export default async function handler(req, res) {
       orderId: generateOrderId(),
       currencyCode: currency,
       amount: amount,
+      
+      // Customer ID for enabling saved payment methods (as per official docs)
+      ...(customerId && { customerId: customerId }),
       
       // Customer information (as per official docs)
       customer: {
@@ -62,7 +65,7 @@ export default async function handler(req, res) {
       
       // Optional: Payment method configuration
       paymentMethod: {
-        vaultOnSuccess: false
+        vaultOnSuccess: Boolean(customerId) // Enable vaulting when customerId is provided
       }
     };
     

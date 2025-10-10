@@ -16,6 +16,7 @@ export const createSessionSchema = Joi.object({
   amount: Joi.number().positive().max(9999999),
   currency: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').default('GBP'),
   customerEmail: Joi.string().email(),
+  customerId: Joi.string().min(1).max(256).optional(), // Support for Primer customerId
   items: Joi.array().items(Joi.object({
     id: Joi.string().required(),
     name: Joi.string().required(),

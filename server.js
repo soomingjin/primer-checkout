@@ -32,6 +32,7 @@ const createSessionSchema = Joi.object({
   amount: Joi.number().positive().max(9999999),
   currency: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').default('GBP'),
   customerEmail: Joi.string().email(),
+  customerId: Joi.string().min(1).max(256).optional(), // Support for Primer customerId
   items: Joi.array().items(Joi.object({
     id: Joi.string().required(),
     name: Joi.string().required(),
@@ -40,21 +41,12 @@ const createSessionSchema = Joi.object({
   }))
 });
 
-// Security middleware - disable CSP in development for Primer SDK compatibility
+// Security middleware - disable CSP for Vercel deployment (CSP handled by vercel.json)
 if (NODE_ENV === 'production') {
-  // Production CSP (more restrictive)
+  // Disable CSP in production - handled by vercel.json headers
+  console.log('🔒 CSP configured via vercel.json headers for production');
   app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://*.primer.io"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://*.primer.io"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", "https://*.primer.io"],
-        frameSrc: ["'self'", "https://*.primer.io"],
-        formAction: ["'self'", "https://*.primer.io"]
-      }
-    }
+    contentSecurityPolicy: false  // Let vercel.json handle CSP
   }));
 } else {
   // Development - disable CSP to allow Primer SDK full functionality
@@ -93,7 +85,7 @@ const webhookLimiter = rateLimit({
 app.use('/create-client-session', createSessionLimiter);
 app.use('/webhook', webhookLimiter);
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -185,7 +177,7 @@ app.post('/create-client-session', async (req, res) => {
       });
     }
     
-    const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, items } = value;
+    const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, customerId, items } = value;
     
     // Build order data following official Primer API format
     const orderData = {
@@ -193,6 +185,9 @@ app.post('/create-client-session', async (req, res) => {
       orderId: generateOrderId(),
       currencyCode: currency,
       amount: amount,
+      
+      // Customer ID for enabling saved payment methods (as per official docs)
+      ...(customerId && { customerId: customerId }),
       
       // Customer information (as per official docs)
       customer: {
@@ -218,7 +213,7 @@ app.post('/create-client-session', async (req, res) => {
       
       // Optional: Payment method configuration
       paymentMethod: {
-        vaultOnSuccess: false
+        vaultOnSuccess: Boolean(customerId) // Enable vaulting when customerId is provided
       }
     };
     
@@ -434,7 +429,7 @@ function handlePaymentCancelled(payment) {
 
 // Serve the main HTML file
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // 404 handler

@@ -8,9 +8,10 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "dev:vercel": "vercel dev",
-    "build": "echo 'No build step required for Vercel deployment' && exit 0",
-    "deploy": "vercel --prod",
-    "deploy:preview": "vercel",
+    "build": "node build.js",
+    "build:prod": "NODE_ENV=production node build.js",
+    "deploy": "yarn build:prod && vercel --prod",
+    "deploy:preview": "yarn build && vercel",
     "restart": "pkill -f 'node server.js' || true && sleep 1 && node server.js",
     "stop": "pkill -f 'node server.js' || echo 'No server running'",
     "setup": "node scripts/setup.js",
@@ -23,7 +24,9 @@
     "lint": "echo 'Linting configured per Primer best practices' && exit 0",
     "clean": "rm -rf node_modules package-lock.json yarn.lock && yarn install",
     "reset": "rm -f .env && yarn setup",
-    "postinstall": "node -e \"console.log('📦 Dependencies installed! Ready for Vercel deployment!')\""
+    "analyze": "yarn build && node -e \"const report = require('./public/build-report.json'); console.log('📊 Bundle Analysis:', JSON.stringify(report.performance, null, 2));\"",
+    "summary": "node scripts/performance-summary.js",
+    "postinstall": "node -e \"console.log('📦 Dependencies installed! Run yarn build for optimized assets!')\""
   },
     "dependencies": {
         "@primer-io/checkout-web": "^2.57.5",
