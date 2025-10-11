@@ -73,6 +73,7 @@ const createSessionSchema = Joi.object({
   // Direct Primer API payment method format
   paymentMethod: Joi.object({
     vaultOnSuccess: Joi.boolean().optional(),
+    firstPaymentReason: Joi.string().valid('CardOnFile', 'Recurring', 'Unscheduled').optional(),
     options: Joi.object({
       APPLE_PAY: Joi.object({
         merchantName: Joi.string().optional(),
@@ -82,6 +83,9 @@ const createSessionSchema = Joi.object({
       }).optional()
     }).optional()
   }).optional(),
+  
+  // Payment type for recurring payments (as per Primer API v2.4+)
+  paymentType: Joi.string().valid('FIRST_PAYMENT', 'ECOMMERCE', 'SUBSCRIPTION', 'UNSCHEDULED').optional(),
   
   // Allow any other Primer API fields
   metadata: Joi.object().unknown().optional()
@@ -255,6 +259,127 @@ app.get('/payments/:id', async (req, res) => {
   }
 });
 
+// Charge payment method token endpoint - POST /charge-payment-method
+app.post('/charge-payment-method', async (req, res) => {
+  try {
+    // Validate API key
+    if (!PRIMER_API_KEY || PRIMER_API_KEY === 'sk_test_...') {
+      return res.status(500).json({
+        error: 'Primer API Key not configured. Please check your environment variables.',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Validation schema
+    const chargeSchema = Joi.object({
+      paymentMethodToken: Joi.string().required(),
+      amount: Joi.number().positive().max(9999999).required(),
+      currencyCode: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').default('GBP').required(),
+      orderId: Joi.string().min(1).max(256).optional(),
+      paymentType: Joi.string().valid('FIRST_PAYMENT', 'ECOMMERCE', 'SUBSCRIPTION', 'UNSCHEDULED').optional(),
+      firstPaymentReason: Joi.string().valid('CardOnFile', 'Recurring', 'Unscheduled').optional(),
+      customerId: Joi.string().min(1).max(256).optional(),
+      customerEmail: Joi.string().email().optional(),
+      description: Joi.string().max(500).optional(),
+      metadata: Joi.object().unknown().optional()
+    });
+    
+    // Validate request body
+    const { error, value } = chargeSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        error: 'Invalid request data',
+        details: error.details.map(d => d.message),
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    console.log('💳 Processing payment method token charge:', {
+      token: value.paymentMethodToken.substring(0, 20) + '...',
+      amount: value.amount,
+      currency: value.currencyCode,
+      paymentType: value.paymentType
+    });
+
+    // Prepare payment request for Primer Payments API
+    const paymentRequest = {
+      orderId: value.orderId || generateOrderId(),
+      amount: value.amount,
+      currencyCode: value.currencyCode,
+      paymentMethodToken: value.paymentMethodToken,
+      ...(value.paymentType && { paymentType: value.paymentType }),
+      ...(value.customerId && { customerId: value.customerId }),
+      ...(value.description && { description: value.description }),
+      ...(value.metadata && { metadata: value.metadata })
+    };
+
+    // Add paymentMethod object with firstPaymentReason if provided
+    if (value.firstPaymentReason) {
+      paymentRequest.paymentMethod = {
+        firstPaymentReason: value.firstPaymentReason
+      };
+    }
+
+    console.log('📤 Sending payment request to Primer:', JSON.stringify(paymentRequest, null, 2));
+
+    // Call Primer Payments API with retry logic
+    const paymentResponse = await retryWithBackoff(async () => {
+      const response = await fetch('https://api.sandbox.primer.io/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': PRIMER_API_KEY,
+          'X-Api-Version': '2.4',
+          'X-Idempotency-Key': `charge-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+        },
+        body: JSON.stringify(paymentRequest)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Primer Payments API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        throw new Error(`Primer Payments API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      return response.json();
+    }, 3);
+
+    console.log('✅ Payment processed successfully:', {
+      paymentId: paymentResponse.id,
+      status: paymentResponse.status,
+      amount: paymentResponse.amount,
+      currency: paymentResponse.currencyCode
+    });
+
+    return res.json({
+      success: true,
+      payment: paymentResponse,
+      message: `Payment ${paymentResponse.status.toLowerCase()} successfully`
+    });
+
+  } catch (error) {
+    console.error('❌ Payment method token charge failed:', error);
+    
+    // Extract meaningful error message
+    let errorMessage = 'Failed to charge payment method token';
+    if (error.message.includes('Primer Payments API request failed')) {
+      errorMessage = error.message;
+    } else if (error.message) {
+      errorMessage = `Payment processing error: ${error.message}`;
+    }
+
+    return res.status(500).json({
+      error: errorMessage,
+      timestamp: new Date().toISOString(),
+      debug: NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
@@ -303,6 +428,7 @@ app.post('/create-client-session', async (req, res) => {
         ...(value.customer && { customer: value.customer }),
         ...(value.order && { order: value.order }),
         ...(value.paymentMethod && { paymentMethod: value.paymentMethod }),
+        ...(value.paymentType && { paymentType: value.paymentType }),
         ...(value.metadata && { metadata: value.metadata }),
         
         // Ensure we have customer info if not provided
@@ -330,7 +456,8 @@ app.post('/create-client-session', async (req, res) => {
       
       // Process internal format (original logic)
       const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, customerId, items, 
-              countryCode, applePayMerchantName, applePayRecurring, applePayDeferred, applePayAutoReload } = value;
+              countryCode, applePayMerchantName, applePayRecurring, applePayDeferred, applePayAutoReload,
+              paymentType, firstPaymentReason } = value;
     
       orderData = {
       // Required fields per official documentation
@@ -363,9 +490,10 @@ app.post('/create-client-session', async (req, res) => {
         countryCode: countryCode || "GB"
       },
       
-      // Payment method configuration with Apple Pay support
+      // Payment method configuration with Apple Pay support and recurring payment support
       paymentMethod: {
         vaultOnSuccess: Boolean(customerId), // Enable vaulting when customerId is provided
+        ...(firstPaymentReason && { firstPaymentReason: firstPaymentReason }), // For recurring payments
         // Apple Pay specific options (as per Primer API docs)
         options: {
           APPLE_PAY: {
@@ -400,7 +528,10 @@ app.post('/create-client-session', async (req, res) => {
             })
           }
         }
-      }
+      },
+      
+      // Payment type for recurring payments (as per Primer API v2.4+)
+      ...(paymentType && { paymentType: paymentType })
     };
   }
     

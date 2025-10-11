@@ -235,6 +235,110 @@
                             </div>
                         </div>
                         
+                        <!-- Payment Method Token Charging -->
+                        <div class="space-y-4">
+                            <h3 class="text-lg font-semibold text-gray-800 border-b pb-2">🔄 Charge Payment Method Token</h3>
+                            <div class="text-xs text-gray-600 bg-blue-50 p-3 rounded">
+                                <strong>💡 Info:</strong> Use this to charge saved payment method tokens directly via Primer's Payments API. Perfect for recurring payments, subscriptions, and card-on-file scenarios.
+                            </div>
+                            
+                            <div>
+                                <label for="payment-token-input" class="form-label">Payment Method Token:</label>
+                                <input 
+                                    type="text" 
+                                    id="payment-token-input" 
+                                    placeholder="Enter payment method token (e.g., pm_...)"
+                                    class="form-input text-xs"
+                                />
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label for="charge-amount-input" class="form-label">Amount:</label>
+                                    <input 
+                                        type="number" 
+                                        id="charge-amount-input" 
+                                        step="0.01" 
+                                        min="0.01" 
+                                        max="9999.99"
+                                        value="19.99"
+                                        placeholder="Amount"
+                                        class="form-input text-xs"
+                                    />
+                                </div>
+                                <div>
+                                    <label for="charge-currency-select" class="form-label">Currency:</label>
+                                    <select id="charge-currency-select" class="form-input text-xs">
+                                        <option value="GBP">GBP</option>
+                                        <option value="USD">USD</option>
+                                        <option value="EUR">EUR</option>
+                                        <option value="JPY">JPY</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label for="payment-type-select" class="form-label">
+                                        Payment Type:
+                                        <span class="text-xs text-gray-500">(see <a href="https://primer.io/docs/get-started/recurring-payments" target="_blank" class="text-blue-600 underline">docs</a>)</span>
+                                    </label>
+                                    <select id="payment-type-select" class="form-input text-xs">
+                                        <option value="">Select payment type</option>
+                                        <option value="FIRST_PAYMENT">FIRST_PAYMENT - Initial setup</option>
+                                        <option value="ECOMMERCE">ECOMMERCE - Customer present</option>
+                                        <option value="SUBSCRIPTION">SUBSCRIPTION - Recurring</option>
+                                        <option value="UNSCHEDULED">UNSCHEDULED - Variable</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="first-payment-reason-select" class="form-label">First Payment Reason:</label>
+                                    <select id="first-payment-reason-select" class="form-input text-xs">
+                                        <option value="">Select reason</option>
+                                        <option value="CardOnFile">CardOnFile</option>
+                                        <option value="Recurring">Recurring</option>
+                                        <option value="Unscheduled">Unscheduled</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label for="charge-customer-id-input" class="form-label">Customer ID (optional):</label>
+                                <input 
+                                    type="text" 
+                                    id="charge-customer-id-input" 
+                                    placeholder="Customer identifier"
+                                    class="form-input text-xs"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label for="charge-description-input" class="form-label">Description (optional):</label>
+                                <input 
+                                    type="text" 
+                                    id="charge-description-input" 
+                                    placeholder="Payment description"
+                                    class="form-input text-xs"
+                                />
+                            </div>
+                            
+                            <div class="flex gap-2">
+                                <button id="charge-payment-method" class="bg-red-600 text-white py-2 px-3 rounded text-sm hover:bg-red-700 flex-1">
+                                    💳 Charge Payment Method
+                                </button>
+                                <button id="clear-payment-charge" class="bg-gray-600 text-white py-2 px-3 rounded text-sm hover:bg-gray-700">
+                                    Clear
+                                </button>
+                            </div>
+                            
+                            <div>
+                                <label class="form-label">Charge Response:</label>
+                                <div id="charge-response" class="text-xs bg-white p-2 rounded border font-mono text-gray-600 min-h-[60px] max-h-[200px] overflow-y-auto">
+                                    No charge attempted yet
+                                </div>
+                            </div>
+                        </div>
+                        
                         <!-- Style Editor - TEMPORARILY HIDDEN (not working properly) -->
                         <div class="space-y-4 hidden">
                             <h3 class="text-lg font-semibold text-gray-800 border-b pb-2">🎨 Primer Style Editor</h3>
@@ -422,6 +526,10 @@
                 this.elements.checkPaymentStatusBtn?.addEventListener('click', () => this.checkPaymentStatus());
                 this.elements.clearPaymentStatusBtn?.addEventListener('click', () => this.clearPaymentStatus());
                 
+                // Payment method token charging
+                document.getElementById('charge-payment-method')?.addEventListener('click', () => this.chargePaymentMethod());
+                document.getElementById('clear-payment-charge')?.addEventListener('click', () => this.clearPaymentCharge());
+                
                 // Scenario buttons
                 document.querySelectorAll('.scenario-btn').forEach(btn => {
                     btn.addEventListener('click', async () => {
@@ -560,7 +668,11 @@
                     applePayDeferred: this.debugConfig.applePayDeferred,
                     applePayAutoReload: this.debugConfig.applePayAutoReload,
                     
-                items: [{
+                    // Payment type and first payment reason for recurring payments
+                    ...(this.debugConfig.currentPaymentType && { paymentType: this.debugConfig.currentPaymentType }),
+                    ...(this.debugConfig.currentFirstPaymentReason && { firstPaymentReason: this.debugConfig.currentFirstPaymentReason }),
+                    
+            items: [{
                     id: 'hoodie-sku-1',
                     name: 'Premium Primer Hoodie',
                     amount: amountInMinorUnits,
@@ -828,9 +940,27 @@
                 this.debugConfig.applePayAutoReload = false;
                 
                 const scenarios = {
-                    success: { name: 'Success Case', amount: 1.00, customerEmail: 'success@test.com' },
-                    vault: { name: 'Vault Customer', amount: 49.99, customerEmail: 'vault@customer.com' },
-                    subscription: { name: 'Subscription', amount: 19.99, customerEmail: 'subscription@test.com' },
+                    success: { 
+                        name: 'Success Case', 
+                        amount: 1.00, 
+                        customerEmail: 'success@test.com',
+                        paymentType: 'FIRST_PAYMENT',
+                        firstPaymentReason: 'CardOnFile'
+                    },
+                    vault: { 
+                        name: 'Vault Customer', 
+                        amount: 49.99, 
+                        customerEmail: 'vault@customer.com',
+                        paymentType: 'FIRST_PAYMENT',
+                        firstPaymentReason: 'CardOnFile'
+                    },
+                    subscription: { 
+                        name: 'Subscription', 
+                        amount: 19.99, 
+                        customerEmail: 'subscription@test.com',
+                        paymentType: 'FIRST_PAYMENT',
+                        firstPaymentReason: 'Recurring'
+                    },
                     
                     // Apple Pay specific scenarios
                     'applepay-standard': { 
@@ -874,6 +1004,10 @@
                         this.updatePriceDisplay();
                     }
                 }
+
+                // Store payment type and first payment reason for this scenario
+                this.debugConfig.currentPaymentType = config.paymentType;
+                this.debugConfig.currentFirstPaymentReason = config.firstPaymentReason;
 
                 // Apply Apple Pay specific settings
                 if (config.applePayType) {
@@ -966,17 +1100,17 @@
             }
 
             async createCustomClientSession(customSessionJson) {
-                const response = await fetch('/create-client-session', {
-                    method: 'POST',
+            const response = await fetch('/create-client-session', {
+                method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify(customSessionJson),
-                });
+            });
 
-                const data = await response.json();
+            const data = await response.json();
 
-                if (!response.ok) {
+            if (!response.ok) {
                     throw new Error(data.message || data.error || `Server error: ${response.status}`);
                 }
 
@@ -1010,7 +1144,7 @@
                         this.showMessage(`✅ Valid JSON with fields: ${presentFields.join(', ')}`, 'success');
                     }
                     
-                } catch (error) {
+            } catch (error) {
                     this.showMessage("❌ Invalid JSON format", 'error');
                     console.error('JSON validation error:', error);
                 }
@@ -1170,7 +1304,7 @@
 
                     // Rebuild checkout options with new style
                     const checkoutOptions = {
-                        container: '#primer-container',
+                    container: '#primer-container',
                         debug: true,
                         
                         // Apply locale
@@ -1404,8 +1538,8 @@
                     await this.startCheckout();
                     
                     this.showMessage("Checkout restarted successfully!", 'success');
-                    
-                } catch (error) {
+
+            } catch (error) {
                     console.error('❌ Failed to restart checkout:', error);
                     this.showMessage(`Failed to restart checkout: ${error.message}`, 'error');
                 }
@@ -1462,6 +1596,98 @@
                 this.elements.paymentIdInput.value = '';
                 this.elements.paymentStatusResponse.innerHTML = 'No payment checked yet';
                 this.showMessage("Payment status cleared", 'info');
+            }
+
+            async chargePaymentMethod() {
+                const paymentMethodToken = document.getElementById('payment-token-input')?.value.trim();
+                const amount = parseFloat(document.getElementById('charge-amount-input')?.value);
+                const currencyCode = document.getElementById('charge-currency-select')?.value;
+                const paymentType = document.getElementById('payment-type-select')?.value;
+                const firstPaymentReason = document.getElementById('first-payment-reason-select')?.value;
+                const customerId = document.getElementById('charge-customer-id-input')?.value.trim();
+                const description = document.getElementById('charge-description-input')?.value.trim();
+
+                if (!paymentMethodToken) {
+                    this.showMessage("Please enter a payment method token", 'warning');
+                    return;
+                }
+
+                if (!amount || amount <= 0) {
+                    this.showMessage("Please enter a valid amount", 'warning');
+                    return;
+                }
+
+                try {
+                    console.log(`💳 Charging payment method token: ${paymentMethodToken.substring(0, 20)}...`);
+                    
+                    document.getElementById('charge-response').innerHTML = '<div class="text-blue-600">Processing payment...</div>';
+                    
+                    const requestData = {
+                        paymentMethodToken: paymentMethodToken,
+                        amount: Math.round(amount * 100), // Convert to minor units
+                        currencyCode: currencyCode,
+                        ...(paymentType && { paymentType: paymentType }),
+                        ...(firstPaymentReason && { firstPaymentReason: firstPaymentReason }),
+                        ...(customerId && { customerId: customerId }),
+                        ...(description && { description: description })
+                    };
+
+                    console.log('📤 Sending charge request:', requestData);
+
+                    const response = await fetch('/charge-payment-method', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestData)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        // Format the response nicely
+                        document.getElementById('charge-response').innerHTML = `
+                            <div class="text-green-600 font-medium mb-2">✅ Payment ${data.payment.status}</div>
+                            <div class="mb-2">
+                                <strong>Payment ID:</strong> ${data.payment.id}<br>
+                                <strong>Amount:</strong> ${(data.payment.amount / 100).toFixed(2)} ${data.payment.currencyCode}<br>
+                                <strong>Status:</strong> ${data.payment.status}
+                                ${data.payment.customerId ? `<br><strong>Customer ID:</strong> ${data.payment.customerId}` : ''}
+                            </div>
+                            <details>
+                                <summary class="cursor-pointer text-blue-600 hover:text-blue-800">View Full Response</summary>
+                                <pre class="text-xs mt-2">${JSON.stringify(data.payment, null, 2)}</pre>
+                            </details>
+                        `;
+                        this.showMessage(`🎉 Payment ${data.payment.status.toLowerCase()} successfully! ID: ${data.payment.id}`, 'success');
+                    } else {
+                        document.getElementById('charge-response').innerHTML = `
+                            <div class="text-red-600 font-medium mb-2">❌ Payment Failed</div>
+                            <pre class="text-xs">${JSON.stringify(data, null, 2)}</pre>
+                        `;
+                        this.showMessage(`Failed to charge payment method: ${data.error || 'Unknown error'}`, 'error');
+                    }
+
+                } catch (error) {
+                    console.error('❌ Payment method charge failed:', error);
+                    document.getElementById('charge-response').innerHTML = `
+                        <div class="text-red-600 font-medium mb-2">❌ Request Failed</div>
+                        <div class="text-xs">${error.message}</div>
+                    `;
+                    this.showMessage(`Failed to charge payment method: ${error.message}`, 'error');
+                }
+            }
+
+            clearPaymentCharge() {
+                document.getElementById('payment-token-input').value = '';
+                document.getElementById('charge-amount-input').value = '19.99';
+                document.getElementById('charge-currency-select').value = 'GBP';
+                document.getElementById('payment-type-select').value = '';
+                document.getElementById('first-payment-reason-select').value = '';
+                document.getElementById('charge-customer-id-input').value = '';
+                document.getElementById('charge-description-input').value = '';
+                document.getElementById('charge-response').innerHTML = 'No charge attempted yet';
+                this.showMessage("Payment charge form cleared", 'info');
             }
 
             resetStyle() {

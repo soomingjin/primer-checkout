@@ -16,6 +16,10 @@
     {
       "source": "/payments/(.*)",
       "destination": "/api/payments/$1"
+    },
+    {
+      "source": "/charge-payment-method",
+      "destination": "/api/charge-payment-method"
     }
   ],
   "headers": [
