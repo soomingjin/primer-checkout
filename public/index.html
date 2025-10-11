@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primer Checkout Demo - Secure Payment Processing</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    
+    <!-- Optimized CSS -->
+    <link rel="stylesheet" href="css/checkout.css">
+    
+    <!-- Primer SDK - Official CDN -->
+    <script src="https://sdk.primer.io/web/v2.57.3/Primer.min.js"></script>
+    
+    <!-- Performance hints -->
+    <link rel="dns-prefetch" href="https://sdk.primer.io">
+    <link rel="preconnect" href="https://sdk.primer.io" crossorigin>
+</head>
+<body>
+        <!-- Header -->
+    <header class="container mx-auto py-6">
+        <div class="text-center">
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">
+                💳 Primer Checkout Demo
+            </h1>
+            <p class="text-gray-600">Secure payment processing with Universal Checkout</p>
+        </div>
+        </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4">
+        <div class="max-w-7xl mx-auto flex gap-6">
+            <!-- Left Column: Demo Application -->
+            <div class="flex-1 min-w-0">
+                <!-- Status Messages -->
+                <div id="message-container" class="mb-4"></div>
+                
+                <!-- Product Display -->
+                <div id="product-display" class="card mb-6">
+                <div class="text-center mb-6">
+                    <div class="text-6xl mb-4">👕</div>
+                    <h2 class="text-xl font-semibold text-gray-900 mb-2">Premium Primer Hoodie</h2>
+                    <p class="text-gray-600">Comfortable, stylish, and perfect for developers</p>
+                                </div>
+
+                <!-- Price Display -->
+                <div class="price-display" id="display-price">£49.99</div>
+                                
+                                <!-- Payment Configuration -->
+                <div class="grid grid-cols-1 gap-4 mb-6">
+                    <div>
+                        <label for="amount-input" class="form-label">Amount:</label>
+                                        <input 
+                                            type="number" 
+                                            id="amount-input" 
+                            class="form-input"
+                                            value="49.99"
+                            step="0.01" 
+                            min="0.01" 
+                            max="9999.99"
+                            placeholder="Enter amount"
+                        >
+                    </div>
+                    
+                    <div>
+                        <label for="currency-select" class="form-label">Currency:</label>
+                        <select id="currency-select" class="form-input">
+                            <option value="GBP">🇬🇧 British Pound (GBP)</option>
+                            <option value="USD">🇺🇸 US Dollar (USD)</option>
+                            <option value="EUR">🇪🇺 Euro (EUR)</option>
+                            <option value="JPY">🇯🇵 Japanese Yen (JPY)</option>
+                                        </select>
+                                    </div>
+
+                    <div>
+                        <label for="customer-email-input" class="form-label">Email (for vault & receipts):</label>
+                        <input 
+                            type="email" 
+                            id="customer-email-input" 
+                            class="form-input"
+                            placeholder="customer@example.com"
+                        >
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Checkout Button -->
+                <div id="checkout-button-container" class="text-center mb-6">
+                <button id="checkout-button" class="primary-btn w-full">
+                    <svg id="checkout-icon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                    <div id="loading-spinner" class="spinner hidden mr-2"></div>
+                        <span id="button-text">Start Secure Checkout</span>
+                    </button>
+                </div>
+
+                <!-- Primer Container -->
+                <div id="primer-container" class="card hidden"></div>
+                
+                <!-- Stored Payment Methods Container -->
+                <div id="stored-payments-container" class="card hidden mt-6">
+                    <div class="mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">💾 Your Stored Payment Methods</h3>
+                        <p class="text-sm text-gray-600">Manage your saved cards and payment methods</p>
+                    </div>
+                    <div id="vault-manager-container"></div>
+                </div>
+                </div>
+
+            <!-- Right Column: Developer Debug Panel -->
+            <div class="w-96 flex-shrink-0">
+                <div id="debug-panel" class="sticky top-4">
+                    <div class="bg-gray-800 text-white py-3 px-4 rounded-t-lg font-medium">
+                        🛠️ Developer Debug Panel
+                        </div>
+                
+                    <div id="debug-content" class="bg-gray-50 rounded-b-lg p-4 border border-t-0 max-h-screen overflow-y-auto">
+                    <div class="space-y-4">
+                        <!-- Client Session JSON Section -->
+                        <div class="col-span-1 space-y-4">
+                            <h3 class="text-lg font-semibold text-gray-800 border-b pb-2">🔑 Custom Client Session</h3>
+                            <div>
+                                <label for="client-token-input" class="form-label">
+                                    Current/Custom Client Session JSON:
+                                    <span class="text-xs text-gray-500">(Shows current session or enter custom - see <a href="https://primer.io/docs/api-reference/v2.4/api-reference/client-session-api/create-a-client-session" target="_blank" class="text-blue-600 underline">API docs</a>)</span>
+                                </label>
+                                <textarea 
+                                    id="client-token-input" 
+                                    rows="12" 
+                                    placeholder='Current client session will appear here...'
+                                    class="form-input font-mono text-xs"
+                                ></textarea>
+                        </div>
+                            <div class="flex gap-2 flex-wrap">
+                                <button id="use-custom-token" class="bg-blue-600 text-white py-2 px-3 rounded text-sm hover:bg-blue-700">
+                                    Use Custom Session JSON
+                                </button>
+                                <button id="clear-custom-token" class="bg-gray-600 text-white py-2 px-3 rounded text-sm hover:bg-gray-700">
+                                    Clear & Auto-Generate
+                                </button>
+                                <button id="validate-json" class="bg-purple-600 text-white py-2 px-3 rounded text-sm hover:bg-purple-700">
+                                    Validate JSON
+                                </button>
+                        </div>
+                            <div class="mt-4 mb-4">
+                                <button id="restart-checkout-new" class="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white py-3 px-4 rounded-lg text-base font-semibold hover:from-green-700 hover:to-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg transform hover:scale-105 transition-all duration-200" disabled>
+                                    🔄 Restart Checkout with New Session
+                                </button>
+                            </div>
+                            <div>
+                                <label class="form-label">Current Session Status:</label>
+                                <div id="token-status" class="text-xs bg-white p-2 rounded border font-mono text-gray-600">
+                                    Auto-generated from form inputs
+                </div>
+                            </div>
+                            <div>
+                                <label class="form-label">Request Sent to API:</label>
+                                <div id="session-request-display" class="text-xs bg-gray-50 p-2 rounded border font-mono text-gray-600 max-h-[150px] overflow-y-auto">
+                                    No request sent yet
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label">Response from /create-client-session:</label>
+                                <div id="session-response-display" class="text-xs bg-white p-2 rounded border font-mono text-gray-600 max-h-[150px] overflow-y-auto">
+                                    No response received yet
+            </div>
+        </div>
+    </div>
+
+                        <!-- Test Scenarios -->
+                        <div class="space-y-4">
+                            <h3 class="text-lg font-semibold text-gray-800 border-b pb-2">🎭 Test Scenarios</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button class="scenario-btn bg-green-600 text-white py-2 px-3 rounded text-sm hover:bg-green-700" data-scenario="success">
+                                    ✅ Success Case
+                                </button>
+                                <button class="scenario-btn bg-yellow-600 text-white py-2 px-3 rounded text-sm hover:bg-yellow-700" data-scenario="vault">
+                                    💾 Vault Customer
+                                </button>
+                                <button class="scenario-btn bg-purple-600 text-white py-2 px-3 rounded text-sm hover:bg-purple-700" data-scenario="subscription">
+                                    🔄 Subscription
+                                </button>
+                            </div>
+                            <div>
+                                <label class="form-label">Quick Amount Presets:</label>
+                                <div class="grid grid-cols-4 gap-2">
+                                    <button class="amount-btn bg-gray-600 text-white py-1 px-2 rounded text-xs hover:bg-gray-700" data-amount="1.00">
+                                        £1.00
+                                    </button>
+                                    <button class="amount-btn bg-gray-600 text-white py-1 px-2 rounded text-xs hover:bg-gray-700" data-amount="9.99">
+                                        £9.99
+                                    </button>
+                                    <button class="amount-btn bg-gray-600 text-white py-1 px-2 rounded text-xs hover:bg-gray-700" data-amount="49.99">
+                                        £49.99
+                                    </button>
+                                    <button class="amount-btn bg-gray-600 text-white py-1 px-2 rounded text-xs hover:bg-gray-700" data-amount="99.99">
+                                        £99.99
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Status Checker -->
+                        <div class="space-y-4">
+                            <h3 class="text-lg font-semibold text-gray-800 border-b pb-2">💳 Payment Status</h3>
+                            <div>
+                                <label for="payment-id-input" class="form-label">Payment ID:</label>
+                                <input 
+                                    type="text" 
+                                    id="payment-id-input" 
+                                    placeholder="Enter payment ID..."
+                                    class="form-input text-xs"
+                                />
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="check-payment-status" class="bg-purple-600 text-white py-2 px-3 rounded text-sm hover:bg-purple-700">
+                                    Check Status
+                                </button>
+                                <button id="clear-payment-status" class="bg-gray-600 text-white py-2 px-3 rounded text-sm hover:bg-gray-700">
+                                    Clear
+                                </button>
+                            </div>
+                            <div>
+                                <label class="form-label">Payment Status Response:</label>
+                                <div id="payment-status-response" class="text-xs bg-white p-2 rounded border font-mono text-gray-600 min-h-[60px] max-h-[200px] overflow-y-auto">
+                                    No payment checked yet
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Style Editor - TEMPORARILY HIDDEN (not working properly) -->
+                        <div class="space-y-4 hidden">
+                            <h3 class="text-lg font-semibold text-gray-800 border-b pb-2">🎨 Primer Style Editor</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="form-label">Theme Presets:</label>
+                                    <select id="theme-preset" class="form-input">
+                                        <option value="default">Default Theme</option>
+                                        <option value="dark">Dark Theme</option>
+                                        <option value="minimal">Minimal Theme</option>
+                                        <option value="colorful">Colorful Theme</option>
+                                        <option value="custom">Custom Theme</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label">Locale:</label>
+                                    <select id="locale-select" class="form-input">
+                                        <option value="en-US">English (US)</option>
+                                        <option value="fr-FR">French (France)</option>
+                                        <option value="de-DE">German (Germany)</option>
+                                        <option value="es">Spanish</option>
+                                        <option value="it-IT">Italian (Italy)</option>
+                                        <option value="ja-JP">Japanese (Japan)</option>
+                                        <option value="ar">Arabic (RTL)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label for="style-editor" class="form-label">
+                                    Custom Style JSON:
+                                    <span class="text-xs text-gray-500">(Edit to customize Primer checkout appearance)</span>
+                                </label>
+                                <textarea 
+                                    id="style-editor" 
+                                    rows="8" 
+                                    placeholder="Enter custom Primer style configuration as JSON..."
+                                    class="form-input font-mono text-xs"
+                                ></textarea>
+                            </div>
+                            
+                            <div class="flex gap-2">
+                                <button id="apply-style" class="bg-indigo-600 text-white py-2 px-4 rounded text-sm hover:bg-indigo-700">
+                                    Apply Style & Restart Checkout
+                                </button>
+                                <button id="reset-style" class="bg-gray-600 text-white py-2 px-4 rounded text-sm hover:bg-gray-700">
+                                    Reset to Default
+                                </button>
+                                <button id="copy-style" class="bg-green-600 text-white py-2 px-4 rounded text-sm hover:bg-green-700">
+                                    Copy Style JSON
+                                </button>
+                            </div>
+                            
+                            <!-- Documentation Link -->
+                            <div class="text-xs text-gray-600 bg-blue-50 p-3 rounded">
+                                <strong>💡 Tip:</strong> See <a href="https://primer.io/docs/checkout/drop-in/customization/web" target="_blank" class="text-blue-600 underline">Primer Style Documentation</a> for all available options.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-6 text-gray-500 text-sm">
+        <p>Powered by <a href="https://primer.io" target="_blank" class="text-blue-600 underline">Primer</a> Universal Checkout</p>
+    </footer>
+
+    <!-- Application JavaScript -->
+    <script>
+        // =================================================================
+        // PRIMER CHECKOUT APPLICATION - UNMINIFIED & WORKING
+        // =================================================================
+
+        class PrimerCheckoutApp {
+            constructor() {
+                this.currentSession = null;
+                this.userId = this.generateUserId();
+                this.paymentConfig = {
+            amount: 49.99,
+                    currency: 'GBP',
+                    customerEmail: ''
+                };
+                this.debugConfig = {
+                    customClientToken: null,
+                    customSessionJson: null,
+                    customStyle: null,
+                    locale: 'en-US',
+                    useCustomToken: false,
+                    useCustomSession: false,
+                    // Apple Pay configuration
+                    applePayRecurring: false,
+                    applePayDeferred: false,
+                    applePayAutoReload: false,
+                    countryCode: 'GB',
+                    merchantName: null
+                };
+                
+                this.init();
+            }
+
+            init() {
+                document.addEventListener('DOMContentLoaded', () => {
+                    this.initializeElements();
+                    this.initializeEventListeners();
+                    this.checkPrimerSDK();
+                });
+            }
+
+            initializeElements() {
+                this.elements = {
+                    checkoutButton: document.getElementById('checkout-button'),
+                    buttonText: document.getElementById('button-text'),
+                    checkoutIcon: document.getElementById('checkout-icon'),
+                    loadingSpinner: document.getElementById('loading-spinner'),
+                    messageContainer: document.getElementById('message-container'),
+                    productDisplay: document.getElementById('product-display'),
+                    checkoutButtonContainer: document.getElementById('checkout-button-container'),
+                    primerContainer: document.getElementById('primer-container'),
+                    storedPaymentsContainer: document.getElementById('stored-payments-container'),
+                    vaultManagerContainer: document.getElementById('vault-manager-container'),
+                    amountInput: document.getElementById('amount-input'),
+                    currencySelect: document.getElementById('currency-select'),
+                    customerEmailInput: document.getElementById('customer-email-input'),
+                    displayPrice: document.getElementById('display-price'),
+                    debugContent: document.getElementById('debug-content'),
+                    clientTokenInput: document.getElementById('client-token-input'),
+                    useCustomTokenBtn: document.getElementById('use-custom-token'),
+                    clearCustomTokenBtn: document.getElementById('clear-custom-token'),
+                    validateJsonBtn: document.getElementById('validate-json'),
+                    tokenStatus: document.getElementById('token-status'),
+                    styleEditor: document.getElementById('style-editor'),
+                    themePreset: document.getElementById('theme-preset'),
+                    localeSelect: document.getElementById('locale-select'),
+                    applyStyleBtn: document.getElementById('apply-style'),
+                    resetStyleBtn: document.getElementById('reset-style'),
+                    copyStyleBtn: document.getElementById('copy-style'),
+                    countrySelect: document.getElementById('country-select'),
+                    merchantNameInput: document.getElementById('merchant-name-input'),
+                    restartCheckoutBtn: document.getElementById('restart-checkout-new'),
+                    sessionRequestDisplay: document.getElementById('session-request-display'),
+                    sessionResponseDisplay: document.getElementById('session-response-display'),
+                    paymentIdInput: document.getElementById('payment-id-input'),
+                    checkPaymentStatusBtn: document.getElementById('check-payment-status'),
+                    clearPaymentStatusBtn: document.getElementById('clear-payment-status'),
+                    paymentStatusResponse: document.getElementById('payment-status-response')
+                };
+            }
+
+            initializeEventListeners() {
+                // Payment controls
+                this.elements.amountInput?.addEventListener('input', () => this.updatePriceDisplay());
+                this.elements.amountInput?.addEventListener('change', () => this.updatePriceDisplay());
+                this.elements.currencySelect?.addEventListener('change', () => this.updatePriceDisplay());
+                this.elements.customerEmailInput?.addEventListener('input', () => this.updatePriceDisplay());
+                this.elements.customerEmailInput?.addEventListener('change', () => this.updatePriceDisplay());
+                
+                // Checkout button
+                this.elements.checkoutButton?.addEventListener('click', () => this.startCheckout());
+                
+                // Debug panel is always visible in side-by-side layout
+                
+                // Token management
+                this.elements.useCustomTokenBtn?.addEventListener('click', () => this.useCustomClientSession());
+                this.elements.clearCustomTokenBtn?.addEventListener('click', () => this.clearCustomClientToken());
+                this.elements.validateJsonBtn?.addEventListener('click', () => this.validateSessionJson());
+                
+                // Style management
+                this.elements.applyStyleBtn?.addEventListener('click', () => this.applyCustomStyle());
+                this.elements.resetStyleBtn?.addEventListener('click', () => this.resetStyle());
+                this.elements.copyStyleBtn?.addEventListener('click', () => this.copyStyleToClipboard());
+                this.elements.themePreset?.addEventListener('change', () => this.applyThemePreset());
+                this.elements.localeSelect?.addEventListener('change', () => this.updateLocale());
+                
+                // Apple Pay configuration
+                this.elements.countrySelect?.addEventListener('change', () => this.updateCountry());
+                this.elements.merchantNameInput?.addEventListener('input', () => this.updateMerchantName());
+                
+                // Restart checkout button
+                this.elements.restartCheckoutBtn?.addEventListener('click', () => this.restartCheckout());
+                
+                // Payment status checker
+                this.elements.checkPaymentStatusBtn?.addEventListener('click', () => this.checkPaymentStatus());
+                this.elements.clearPaymentStatusBtn?.addEventListener('click', () => this.clearPaymentStatus());
+                
+                // Scenario buttons
+                document.querySelectorAll('.scenario-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const scenario = btn.getAttribute('data-scenario');
+                        await this.applyTestScenario(scenario);
+                    });
+                });
+                
+                // Amount buttons
+                document.querySelectorAll('.amount-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const amount = parseFloat(btn.getAttribute('data-amount'));
+                        this.setAmount(amount);
+                    });
+                });
+                
+                // Keyboard shortcut
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !this.elements.checkoutButton?.disabled && 
+                        !this.elements.checkoutButtonContainer?.classList.contains('hidden')) {
+                        this.startCheckout();
+                    }
+                });
+
+                // Initial update
+                this.updatePriceDisplay();
+            }
+
+            generateUserId() {
+                return `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            }
+
+            formatAmount(amount, currency) {
+                if (!amount) return '0.00 ' + (currency || 'GBP');
+                const majorAmount = (amount / 100).toFixed(2);
+                const symbols = { 'GBP': '£', 'USD': '$', 'EUR': '€', 'JPY': '¥' };
+            const symbol = symbols[currency] || currency || 'GBP';
+            return `${symbol}${majorAmount}`;
+        }
+
+            formatDisplayAmount(amount, currency) {
+            if (!amount) return '0.00 ' + (currency || 'GBP');
+            const majorAmount = parseFloat(amount).toFixed(2);
+                const symbols = { 'GBP': '£', 'USD': '$', 'EUR': '€', 'JPY': '¥' };
+            const symbol = symbols[currency] || currency || 'GBP';
+            return `${symbol}${majorAmount}`;
+        }
+
+            updatePriceDisplay() {
+                const { amountInput, currencySelect, displayPrice, customerEmailInput } = this.elements;
+            
+            if (amountInput && currencySelect && displayPrice) {
+                const amount = parseFloat(amountInput.value) || 0;
+                const currency = currencySelect.value;
+                    const customerEmail = customerEmailInput ? customerEmailInput.value.trim() : '';
+                
+                // Update global config
+                    this.paymentConfig.amount = amount;
+                    this.paymentConfig.currency = currency;
+                    this.paymentConfig.customerEmail = customerEmail;
+                
+                // Update display
+                    displayPrice.textContent = this.formatDisplayAmount(amount, currency);
+                }
+            }
+
+            showMessage(message, type = 'info', autoDismiss = true) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `status-message status-${type}`;
+            
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            
+            messageDiv.innerHTML = `
+                <div class="flex items-start">
+                    <span class="mr-2 text-lg">${icons[type] || icons.info}</span>
+                    <div class="flex-1">
+                        <p class="font-medium">${message}</p>
+                        <small class="opacity-75">${new Date().toLocaleTimeString()}</small>
+                    </div>
+                </div>
+            `;
+            
+            // Clear previous messages of the same type
+                const existingMessages = this.elements.messageContainer.querySelectorAll(`.status-${type}`);
+            existingMessages.forEach(msg => msg.remove());
+            
+                this.elements.messageContainer.appendChild(messageDiv);
+            
+            // Auto-dismiss after 5 seconds for non-error messages
+            if (autoDismiss && type !== 'error') {
+                setTimeout(() => {
+                    if (messageDiv.parentNode) {
+                        messageDiv.style.opacity = '0';
+                        messageDiv.style.transform = 'translateY(-10px)';
+                        setTimeout(() => messageDiv.remove(), 300);
+                    }
+                }, 5000);
+            }
+        }
+
+            toggleLoading(isLoading, loadingText = 'Processing...') {
+                this.elements.checkoutButton.disabled = isLoading;
+                this.elements.loadingSpinner.classList.toggle('hidden', !isLoading);
+                this.elements.checkoutIcon.classList.toggle('hidden', isLoading);
+                this.elements.buttonText.textContent = isLoading ? loadingText : 'Start Secure Checkout';
+            }
+
+            async getClientTokenFromBackend() {
+                const amountInMinorUnits = Math.round(this.paymentConfig.amount * 100);
+                
+                // Generate customerId from email or use default
+                const customerEmail = this.paymentConfig.customerEmail || 'demo@example.com';
+                const customerId = this.paymentConfig.customerEmail ? 
+                    `customer-${this.paymentConfig.customerEmail.toLowerCase().replace(/[^a-z0-9]/g, '-')}` : 
+                    `customer-demo-${Date.now()}`;
+            
+            const requestData = {
+                    userId: this.userId,
+                cartId: `cart-${Date.now()}`,
+                amount: amountInMinorUnits,
+                    currency: this.paymentConfig.currency,
+                    customerEmail: customerEmail,
+                    customerId: customerId,
+                    
+                    // Apple Pay configuration
+                    countryCode: this.debugConfig.countryCode,
+                    ...(this.debugConfig.merchantName && {
+                        applePayMerchantName: this.debugConfig.merchantName
+                    }),
+                    applePayRecurring: this.debugConfig.applePayRecurring,
+                    applePayDeferred: this.debugConfig.applePayDeferred,
+                    applePayAutoReload: this.debugConfig.applePayAutoReload,
+                    
+                items: [{
+                    id: 'hoodie-sku-1',
+                    name: 'Premium Primer Hoodie',
+                    amount: amountInMinorUnits,
+                    quantity: 1
+                }]
+            };
+
+                // Display the request being sent
+                if (this.elements.sessionRequestDisplay) {
+                    this.elements.sessionRequestDisplay.innerHTML = `<pre class="text-xs">${JSON.stringify(requestData, null, 2)}</pre>`;
+                }
+
+            const response = await fetch('/create-client-session', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData),
+            });
+
+            const data = await response.json();
+
+                // Display the response received
+                if (this.elements.sessionResponseDisplay) {
+                    if (response.ok) {
+                        // Show successful response with clientToken truncated for readability
+                        const displayData = {
+                            ...data,
+                            clientToken: data.clientToken ? `${data.clientToken.substring(0, 50)}...` : undefined
+                        };
+                        this.elements.sessionResponseDisplay.innerHTML = `
+                            <div class="text-green-600 font-medium mb-2">✅ Success</div>
+                            <pre class="text-xs">${JSON.stringify(displayData, null, 2)}</pre>
+                        `;
+                    } else {
+                        // Show error response
+                        this.elements.sessionResponseDisplay.innerHTML = `
+                            <div class="text-red-600 font-medium mb-2">❌ Error</div>
+                            <pre class="text-xs">${JSON.stringify(data, null, 2)}</pre>
+                        `;
+                    }
+                }
+
+            if (!response.ok) {
+                throw new Error(data.message || data.error || `Server error: ${response.status}`);
+            }
+
+            return data;
+        }
+
+            resetUI() {
+                this.toggleLoading(false);
+                this.elements.productDisplay.classList.remove('hidden');
+                this.elements.checkoutButtonContainer.classList.remove('hidden');
+                this.elements.primerContainer.innerHTML = '';
+                this.elements.primerContainer.classList.add('hidden');
+                
+                // Hide and clear stored payment methods
+                this.elements.storedPaymentsContainer.classList.add('hidden');
+                this.elements.vaultManagerContainer.innerHTML = '';
+                
+                this.currentSession = null;
+            }
+
+            async startCheckout() {
+            console.log('🚀 Starting Primer Universal Checkout...');
+            
+                // Validate Primer SDK is loaded
+                if (typeof Primer === 'undefined' && typeof window.Primer === 'undefined') {
+                console.error('❌ Primer SDK not loaded');
+                    this.showMessage("Primer SDK not loaded. Please check your internet connection and try again.", 'error');
+                return;
+            }
+            
+                const PrimerSDK = Primer || window.Primer;
+
+                try {
+                    // Show loading state
+                    this.toggleLoading(true, 'Creating secure session...');
+                    this.elements.primerContainer.innerHTML = '';
+                    this.showMessage("Connecting to secure payment server...", 'info');
+
+                    // Get client token from backend or use custom token
+                    let sessionData;
+                    let clientToken;
+                    
+                    if (this.debugConfig.useCustomSession && this.debugConfig.customSessionJson) {
+                        // Use custom client session JSON to create session
+                        sessionData = await this.createCustomClientSession(this.debugConfig.customSessionJson);
+                        clientToken = sessionData.clientToken;
+                        this.showMessage("Using custom client session JSON from debug panel", 'info');
+                    } else if (this.debugConfig.useCustomToken && this.debugConfig.customClientToken) {
+                        clientToken = this.debugConfig.customClientToken;
+                        sessionData = { clientToken: clientToken };
+                        this.showMessage("Using custom client token from debug panel", 'info');
+                    } else {
+                        sessionData = await this.getClientTokenFromBackend();
+                        clientToken = sessionData.clientToken;
+                    }
+                    
+                    this.currentSession = sessionData;
+                    
+                    // Display current session in the debug panel
+                    this.updateClientSessionDisplay();
+                
+                console.log('✅ Client session created:', {
+                    orderId: sessionData.orderId,
+                    amount: sessionData.amount,
+                    currency: sessionData.currency
+                });
+                
+                    this.showMessage("Secure session created successfully!", 'success');
+                    
+                    // Hide product display and prepare checkout UI
+                    this.elements.productDisplay.classList.add('hidden');
+                    this.elements.checkoutButtonContainer.classList.add('hidden');
+                    this.elements.primerContainer.classList.remove('hidden');
+                    this.toggleLoading(true, 'Loading payment methods...');
+                    
+                    // Show stored payment methods if customer has email (which we use as customer ID)
+                    if (this.paymentConfig.customerEmail) {
+                        this.loadStoredPaymentMethods();
+                    }
+
+                    // Initialize Primer Universal Checkout
+                const checkoutOptions = {
+                    container: '#primer-container',
+                    debug: true,
+                    
+                        // Apply locale
+                        ...(this.debugConfig.locale && { locale: this.debugConfig.locale }),
+                        
+                        // Apply custom style if set, according to Primer Web SDK docs
+                        ...(this.debugConfig.customStyle && { 
+                            style: this.debugConfig.customStyle
+                        }),
+
+                    paymentFlow: 'DEFAULT',
+                    
+                    options: {
+                        allowCardholderNameInput: true,
+                        allowSavePaymentMethod: true,
+                        validateZipCode: true
+                    },
+
+                        onCheckoutComplete: ({ payment, paymentMethod }) => {
+                            console.log('✅ Payment completed successfully!', { payment, paymentMethod });
+                            this.showMessage(`🎉 Payment successful! Transaction ID: ${payment?.id}`, 'success', false);
+                            this.displaySuccessScreen(payment, paymentMethod);
+                        },
+
+                        onCheckoutFail: (error, { payment }, handler) => {
+                            console.error('❌ Checkout failed:', error);
+                        let errorMessage = 'Payment failed. Please try again.';
+                        
+                        if (error.errorCode) {
+                            const errorMessages = {
+                                'CARD_DECLINED': 'Your card was declined. Please try a different payment method.',
+                                'INSUFFICIENT_FUNDS': 'Insufficient funds. Please try a different payment method.',
+                                'CARD_EXPIRED': 'Your card has expired. Please use a different card.',
+                                'INVALID_CARD_NUMBER': 'Invalid card number. Please check your card details.',
+                                'PAYMENT_FAILED': 'Payment processing failed. Please try again.',
+                                'NETWORK_ERROR': 'Network error. Please check your connection and try again.'
+                            };
+                            errorMessage = errorMessages[error.errorCode] || `Payment failed: ${error.message}`;
+                        }
+                        
+                            this.showMessage(errorMessage, 'error');
+                            this.toggleLoading(false);
+                            setTimeout(() => this.resetUI(), 5000);
+                        },
+
+                        onBeforePaymentCreate: (paymentMethodData, handler) => {
+                            console.log('🚀 About to create payment with method:', paymentMethodData.paymentMethodType);
+                            this.showMessage("Processing payment...", 'info');
+                            this.toggleLoading(true, 'Processing payment...');
+                            
+                            // Continue with payment creation
+                            handler.continuePaymentCreation();
+                        }
+                        
+                        // ❌ REMOVED UNSUPPORTED CALLBACKS (not supported by Primer Web SDK v2.x.x):
+                        // - onDismiss: Not officially supported
+                        // - onAvailablePaymentMethodsLoad: Not officially supported  
+                        // - onError: Not officially supported
+                        // - onPaymentMethodSelect: Not officially supported
+                        // - onValidationError: Not officially supported
+                        // 
+                        // ✅ Alternative: Handle loading state manually with setTimeout after initialization
+                };
+
+                console.log('🎯 Initializing Primer Universal Checkout...');
+                    console.log('Client token:', clientToken ? 'Present' : 'Missing');
+                    console.log('🎨 Style object being passed:', this.debugConfig.customStyle);
+                    console.log('📋 Full checkout options:', checkoutOptions);
+                
+                const universalCheckout = await PrimerSDK.showUniversalCheckout(
+                        clientToken, 
+                    checkoutOptions
+                );
+
+                console.log('✅ Universal Checkout initialized successfully');
+                
+                // ✅ Manual loading state handling (replaces unsupported onAvailablePaymentMethodsLoad)
+                setTimeout(() => {
+                    this.toggleLoading(false);
+                    this.showMessage("✨ Checkout ready! Payment methods loaded successfully.", 'success');
+                }, 1000); // Give checkout time to initialize payment methods
+
+            } catch (error) {
+                console.error("❌ Checkout initialization failed:", error);
+                    this.showMessage(
+                    `Failed to start checkout: ${error.message}. Please try again or contact support if the problem persists.`, 
+                    'error'
+                );
+                    this.resetUI();
+            }
+        }
+
+            displaySuccessScreen(payment, paymentMethod) {
+            setTimeout(() => {
+                    this.elements.primerContainer.innerHTML = `
+                    <div class="text-center py-12">
+                        <div class="text-6xl mb-4">🎉</div>
+                        <h3 class="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h3>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                            <p class="text-sm text-green-800">
+                                <strong>Payment ID:</strong> ${payment?.id || 'N/A'}<br>
+                                <strong>Method:</strong> ${paymentMethod?.paymentMethodType || 'N/A'}<br>
+                                    <strong>Amount:</strong> ${this.formatAmount(payment?.amount || this.currentSession?.amount || 4999, payment?.currencyCode || this.currentSession?.currency || 'GBP')}<br>
+                                    <strong>Order ID:</strong> ${this.currentSession?.orderId || 'N/A'}
+                            </p>
+                        </div>
+                        <p class="text-gray-600 mb-6">Thank you for your purchase! Order confirmation will be sent to your email.</p>
+                        <button id="new-order-btn" class="primary-btn">Start New Order</button>
+                    </div>
+                `;
+                
+                const newOrderBtn = document.getElementById('new-order-btn');
+                if (newOrderBtn) {
+                        newOrderBtn.addEventListener('click', () => this.resetUI());
+                }
+            }, 1500);
+        }
+
+            toggleDebugPanel() {
+                const isHidden = this.elements.debugContent.classList.contains('hidden');
+                this.elements.debugContent.classList.toggle('hidden');
+                this.elements.debugToggleText.textContent = isHidden ? 
+                    '🛠️ Hide Developer Debug Panel' : 
+                    '🛠️ Show Developer Debug Panel';
+                
+                const icon = this.elements.debugToggleIcon;
+                if (isHidden) {
+                    icon.style.transform = 'rotate(180deg)';
+                } else {
+                    icon.style.transform = 'rotate(0deg)';
+                }
+            }
+
+            async applyTestScenario(scenario) {
+                // Reset Apple Pay flags
+                this.debugConfig.applePayRecurring = false;
+                this.debugConfig.applePayDeferred = false;
+                this.debugConfig.applePayAutoReload = false;
+                
+                const scenarios = {
+                    success: { name: 'Success Case', amount: 1.00, customerEmail: 'success@test.com' },
+                    vault: { name: 'Vault Customer', amount: 49.99, customerEmail: 'vault@customer.com' },
+                    subscription: { name: 'Subscription', amount: 19.99, customerEmail: 'subscription@test.com' },
+                    
+                    // Apple Pay specific scenarios
+                    'applepay-standard': { 
+                        name: 'Apple Pay Standard', 
+                        amount: 25.99, 
+                        customerEmail: 'applepay@test.com',
+                        applePayType: 'standard'
+                    },
+                    'applepay-recurring': { 
+                        name: 'Apple Pay Recurring (Subscription)', 
+                        amount: 9.99, 
+                        customerEmail: 'recurring@applepay.com',
+                        applePayType: 'recurring'
+                    },
+                    'applepay-deferred': { 
+                        name: 'Apple Pay Deferred (Buy Now Pay Later)', 
+                        amount: 199.99, 
+                        customerEmail: 'deferred@applepay.com',
+                        applePayType: 'deferred'
+                    },
+                    'applepay-reload': { 
+                        name: 'Apple Pay Auto-Reload (Wallet Top-up)', 
+                        amount: 50.00, 
+                        customerEmail: 'reload@applepay.com',
+                        applePayType: 'reload'
+                    }
+                };
+
+                const config = scenarios[scenario];
+                if (!config) return;
+
+                // Apply scenario settings
+                if (config.amount) {
+                    this.setAmount(config.amount);
+                }
+                
+                if (config.customerEmail !== undefined) {
+                    const emailInput = this.elements.customerEmailInput;
+                    if (emailInput) {
+                        emailInput.value = config.customerEmail;
+                        this.updatePriceDisplay();
+                    }
+                }
+
+                // Apply Apple Pay specific settings
+                if (config.applePayType) {
+                    switch (config.applePayType) {
+                        case 'recurring':
+                            this.debugConfig.applePayRecurring = true;
+                            break;
+                        case 'deferred':
+                            this.debugConfig.applePayDeferred = true;
+                            break;
+                        case 'reload':
+                            this.debugConfig.applePayAutoReload = true;
+                            break;
+                    }
+                }
+
+                this.showMessage(`Applied ${config.name} test scenario - restarting checkout...`, 'info');
+                
+                // Enable restart checkout button
+                if (this.elements.restartCheckoutBtn) {
+                    this.elements.restartCheckoutBtn.disabled = false;
+                }
+
+                // Automatically restart checkout with the new scenario
+                try {
+                    await this.restartCheckout();
+                    this.showMessage(`${config.name} scenario applied and checkout restarted!`, 'success');
+                } catch (error) {
+                    console.error('Failed to restart checkout after scenario application:', error);
+                    this.showMessage(`${config.name} scenario applied. Please manually start checkout.`, 'warning');
+                }
+            }
+
+            setAmount(amount) {
+                const amountInput = this.elements.amountInput;
+                if (amountInput) {
+                    amountInput.value = amount.toFixed(2);
+                    this.updatePriceDisplay();
+                }
+            }
+
+            useCustomClientSession() {
+                const sessionJson = this.elements.clientTokenInput.value.trim();
+                if (!sessionJson) {
+                    this.showMessage("Please enter client session JSON first", 'warning');
+                return;
+            }
+            
+                try {
+                    // Check if it's a JWT token (fallback to old behavior)
+                    const parts = sessionJson.split('.');
+                    if (parts.length === 3) {
+                        // It's a JWT token
+                        this.debugConfig.customClientToken = sessionJson;
+                        this.debugConfig.useCustomToken = true;
+                        this.debugConfig.useCustomSession = false;
+                        
+                        this.elements.tokenStatus.innerHTML = `
+                            <div class="text-green-600">✅ Using custom JWT token</div>
+                            <div class="text-xs mt-1 truncate">${sessionJson.substring(0, 30)}...</div>
+                        `;
+                        
+                        this.showMessage("Custom JWT token activated! Next checkout will use your token.", 'success');
+                        return;
+                    }
+
+                    // Try to parse as JSON
+                    const sessionPayload = JSON.parse(sessionJson);
+                    
+                    // Basic validation of required fields
+                    if (!sessionPayload.orderId && !sessionPayload.amount && !sessionPayload.currencyCode) {
+                        this.showMessage("Session JSON should include at least orderId, amount, or currencyCode", 'warning');
+                    }
+
+                    this.debugConfig.customSessionJson = sessionPayload;
+                    this.debugConfig.useCustomSession = true;
+                    this.debugConfig.useCustomToken = false;
+                    
+                    this.elements.tokenStatus.innerHTML = `
+                        <div class="text-green-600">✅ Using custom session JSON</div>
+                        <div class="text-xs mt-1">Order: ${sessionPayload.orderId || 'auto'}, Amount: ${sessionPayload.amount || 'auto'}</div>
+                    `;
+                    
+                    this.showMessage("Custom client session JSON activated! Next checkout will create session with your JSON.", 'success');
+                    
+                } catch (error) {
+                    this.showMessage("Invalid JSON format. Please check your client session JSON or use a valid JWT token.", 'error');
+                    console.error('JSON parse error:', error);
+                }
+            }
+
+            async createCustomClientSession(customSessionJson) {
+                const response = await fetch('/create-client-session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(customSessionJson),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || data.error || `Server error: ${response.status}`);
+                }
+
+                return data;
+            }
+
+            validateSessionJson() {
+                const sessionJson = this.elements.clientTokenInput.value.trim();
+                if (!sessionJson) {
+                    this.showMessage("Please enter JSON to validate first", 'warning');
+                return;
+            }
+            
+                try {
+                    const parsed = JSON.parse(sessionJson);
+                    
+                    // Check if it's a JWT token
+                    const parts = sessionJson.split('.');
+                    if (parts.length === 3) {
+                        this.showMessage("✅ Valid JWT token format", 'success');
+                        return;
+                    }
+                    
+                    // Validate as client session JSON
+                    const validFields = ['orderId', 'currencyCode', 'amount', 'customerId', 'customer', 'order', 'paymentMethod', 'metadata'];
+                    const presentFields = Object.keys(parsed).filter(key => validFields.includes(key));
+                    
+                    if (presentFields.length === 0) {
+                        this.showMessage("⚠️ Valid JSON but no recognized client session fields found", 'warning');
+                    } else {
+                        this.showMessage(`✅ Valid JSON with fields: ${presentFields.join(', ')}`, 'success');
+                    }
+                    
+                } catch (error) {
+                    this.showMessage("❌ Invalid JSON format", 'error');
+                    console.error('JSON validation error:', error);
+                }
+            }
+
+            clearCustomClientToken() {
+                this.debugConfig.customClientToken = null;
+                this.debugConfig.customSessionJson = null;
+                this.debugConfig.useCustomToken = false;
+                this.debugConfig.useCustomSession = false;
+                this.elements.clientTokenInput.value = '';
+                
+                this.elements.tokenStatus.innerHTML = `
+                    <div class="text-gray-600">Auto-generated from form inputs</div>
+                `;
+                
+                this.showMessage("Cleared custom session. Will auto-generate on next checkout.", 'info');
+            }
+
+            applyThemePreset() {
+                const preset = this.elements.themePreset.value;
+                const themePresets = {
+                    default: {
+                        theme: {
+                            colorPrimary: '#1f2937',
+                            colorSecondary: '#6b7280',
+                            borderRadius: '0.75rem',
+                            spacingUnit: '16px',
+                            fontFamily: 'Inter, sans-serif',
+                            colorBackground: '#ffffff'
+                        }
+                    },
+                    dark: {
+                        theme: {
+                            colorPrimary: '#3b82f6',
+                            colorSecondary: '#94a3b8',
+                            colorBackground: '#1f2937',
+                            colorText: '#f8fafc',
+                            colorError: '#ef4444',
+                            colorSuccess: '#10b981',
+                            borderRadius: '0.5rem',
+                            spacingUnit: '12px',
+                            fontFamily: '"SF Pro Display", -apple-system, sans-serif'
+                        }
+                    },
+                    minimal: {
+                        theme: {
+                            colorPrimary: '#000000',
+                            colorSecondary: '#666666',
+                            borderRadius: '0rem',
+                            spacingUnit: '8px',
+                            fontFamily: '"Helvetica Neue", Arial, sans-serif',
+                            colorBackground: '#ffffff'
+                        }
+                    },
+                    colorful: {
+                        theme: {
+                            colorPrimary: '#8b5cf6',
+                            colorSecondary: '#06b6d4',
+                            colorBackground: '#fef3c7',
+                            colorSuccess: '#10b981',
+                            colorError: '#f59e0b',
+                            borderRadius: '1rem',
+                            spacingUnit: '20px'
+                        }
+                    }
+                };
+                
+                const theme = themePresets[preset];
+                if (theme) {
+                    this.elements.styleEditor.value = JSON.stringify(theme, null, 2);
+                    
+                    if (preset !== 'custom') {
+                        this.showMessage(`Applied ${preset} theme preset`, 'success');
+                    }
+                }
+            }
+
+            updateLocale() {
+                this.debugConfig.locale = this.elements.localeSelect.value;
+                this.showMessage(`Locale updated to ${this.debugConfig.locale}`, 'info');
+            }
+
+            updateCountry() {
+                this.debugConfig.countryCode = this.elements.countrySelect.value;
+                const countryNames = {
+                    'GB': '🇬🇧 United Kingdom',
+                    'US': '🇺🇸 United States', 
+                    'FR': '🇫🇷 France',
+                    'DE': '🇩🇪 Germany',
+                    'CA': '🇨🇦 Canada',
+                    'AU': '🇦🇺 Australia'
+                };
+                this.showMessage(`Country updated to ${countryNames[this.debugConfig.countryCode]}`, 'info');
+            }
+
+            updateMerchantName() {
+                const merchantName = this.elements.merchantNameInput.value.trim();
+                this.debugConfig.merchantName = merchantName || null;
+                
+                if (merchantName) {
+                    this.showMessage(`Merchant name set to "${merchantName}" for Apple Pay`, 'info');
+                } else {
+                    this.showMessage(`Using default merchant name for Apple Pay`, 'info');
+                }
+            }
+
+            applyCustomStyle() {
+                try {
+                    const styleText = this.elements.styleEditor.value.trim();
+                    
+                    if (styleText) {
+                        const customStyle = JSON.parse(styleText);
+                        this.debugConfig.customStyle = customStyle;
+                        console.log('🎨 Custom style parsed and set:', customStyle);
+                        this.showMessage("Custom style applied! Restarting checkout...", 'success');
+                        
+                        // Restart checkout with new style
+                        this.restartCheckoutWithStyle();
+                    } else {
+                        this.debugConfig.customStyle = null;
+                        console.log('🎨 Custom style cleared');
+                        this.showMessage("Cleared custom style. Restarting checkout...", 'info');
+                        
+                        // Restart checkout without custom style
+                        this.restartCheckoutWithStyle();
+                    }
+                } catch (error) {
+                    this.showMessage("Invalid JSON format. Please check your style configuration.", 'error');
+                    console.error('❌ Style JSON parse error:', error);
+                }
+            }
+
+            async restartCheckoutWithStyle() {
+                // Only restart if checkout is currently active
+                if (!this.currentSession || this.elements.primerContainer.classList.contains('hidden')) {
+                    this.showMessage("Please start checkout first before applying styles.", 'warning');
+                    return;
+                }
+
+                try {
+                    console.log('🔄 Restarting checkout with new style...');
+                    
+                    // Clear existing checkout container
+                    this.elements.primerContainer.innerHTML = '';
+                    
+                    // Show loading state
+                    this.toggleLoading(true, 'Applying new style...');
+
+                    // Validate Primer SDK is loaded
+                    if (typeof Primer === 'undefined' && typeof window.Primer === 'undefined') {
+                        throw new Error('Primer SDK not loaded');
+                    }
+
+                    const PrimerSDK = Primer || window.Primer;
+                    const clientToken = this.currentSession.clientToken;
+
+                    // Rebuild checkout options with new style
+                    const checkoutOptions = {
+                        container: '#primer-container',
+                        debug: true,
+                        
+                        // Apply locale
+                        ...(this.debugConfig.locale && { locale: this.debugConfig.locale }),
+                        
+                        // Apply custom style if set
+                        ...(this.debugConfig.customStyle && { 
+                            style: this.debugConfig.customStyle
+                        }),
+
+                        paymentFlow: 'DEFAULT',
+                        
+                        options: {
+                            allowCardholderNameInput: true,
+                            allowSavePaymentMethod: true,
+                            validateZipCode: true
+                        },
+
+                        onCheckoutComplete: ({ payment, paymentMethod }) => {
+                            console.log('✅ Payment completed successfully!', { payment, paymentMethod });
+                            this.showMessage(`🎉 Payment successful! Transaction ID: ${payment?.id}`, 'success', false);
+                            this.displaySuccessScreen(payment, paymentMethod);
+                        },
+
+                        onCheckoutFail: (error, { payment }, handler) => {
+                            console.error('❌ Checkout failed:', error);
+                            let errorMessage = 'Payment failed. Please try again.';
+                            
+                            if (error.errorCode) {
+                                const errorMessages = {
+                                    'CARD_DECLINED': 'Your card was declined. Please try a different payment method.',
+                                    'INSUFFICIENT_FUNDS': 'Insufficient funds. Please try a different payment method.',
+                                    'CARD_EXPIRED': 'Your card has expired. Please use a different card.',
+                                    'INVALID_CARD_NUMBER': 'Invalid card number. Please check your card details.',
+                                    'PAYMENT_FAILED': 'Payment processing failed. Please try again.',
+                                    'NETWORK_ERROR': 'Network error. Please check your connection and try again.'
+                                };
+                                errorMessage = errorMessages[error.errorCode] || `Payment failed: ${error.message}`;
+                            }
+                            
+                            this.showMessage(errorMessage, 'error');
+                            this.toggleLoading(false);
+                            setTimeout(() => this.resetUI(), 5000);
+                        },
+
+                        onBeforePaymentCreate: (paymentMethodData, handler) => {
+                            console.log('🚀 About to create payment with method:', paymentMethodData.paymentMethodType);
+                            this.showMessage("Processing payment...", 'info');
+                            this.toggleLoading(true, 'Processing payment...');
+                            
+                            // Continue with payment creation
+                            handler.continuePaymentCreation();
+                        }
+                        
+                        // ❌ REMOVED UNSUPPORTED CALLBACKS (same as main checkout initialization)
+                    };
+                    
+                    console.log('🎯 Reinitializing Primer Universal Checkout with new style...');
+                    console.log('🎨 Style object being passed in restart:', this.debugConfig.customStyle);
+                    console.log('📋 Full checkout options in restart:', checkoutOptions);
+                    
+                    // Reinitialize checkout with new style
+                    await PrimerSDK.showUniversalCheckout(clientToken, checkoutOptions);
+                    
+                    // ✅ Manual loading state handling (replaces unsupported onAvailablePaymentMethodsLoad)
+                    setTimeout(() => {
+                        this.toggleLoading(false);
+                        this.showMessage("✨ Checkout ready with new style! Payment methods loaded successfully.", 'success');
+                    }, 1000);
+
+                } catch (error) {
+                    console.error("❌ Checkout restart failed:", error);
+                    this.showMessage(`Failed to restart checkout: ${error.message}`, 'error');
+                    this.toggleLoading(false);
+                }
+            }
+
+            async loadStoredPaymentMethods() {
+                try {
+                    console.log('🔍 Loading stored payment methods for customer...');
+                    
+                    // Show stored payment methods container
+                    this.elements.storedPaymentsContainer.classList.remove('hidden');
+                    
+                    // Validate Primer SDK is loaded
+                    if (typeof Primer === 'undefined' && typeof window.Primer === 'undefined') {
+                        console.warn('Primer SDK not loaded, cannot show vault manager');
+                        return;
+                    }
+
+                    const PrimerSDK = Primer || window.Primer;
+                    
+                    // Check if customer has a session with customerId (vaulting enabled)
+                    if (this.currentSession && this.currentSession.customerId) {
+                        console.log('💾 Customer ID found, initializing vault manager...');
+                        
+                        // Initialize Vault Manager to show stored payment methods
+                        try {
+                            if (typeof PrimerSDK.showVaultManager === 'function') {
+                                await PrimerSDK.showVaultManager(this.currentSession.clientToken, {
+                                    container: '#vault-manager-container',
+                                    onVaultManagerReady: () => {
+                                        console.log('✅ Vault Manager initialized successfully');
+                                        this.showMessage("Stored payment methods loaded", 'success');
+                                    },
+                                    onError: (error) => {
+                                        console.error('❌ Vault Manager error:', error);
+                                        this.handleVaultManagerError(error);
+                                    }
+                                });
+                            } else {
+                                console.warn('⚠️ Vault Manager not available in this SDK version');
+                                this.showStoredPaymentMethodsPlaceholder();
+                            }
+                        } catch (error) {
+                            console.error('❌ Failed to initialize vault manager:', error);
+                            this.handleVaultManagerError(error);
+                        }
+                    } else {
+                        console.log('ℹ️ No customer ID, showing guest checkout message');
+                        this.showGuestCheckoutMessage();
+                    }
+                } catch (error) {
+                    console.error('❌ Error loading stored payment methods:', error);
+                    this.handleVaultManagerError(error);
+                }
+            }
+
+            showStoredPaymentMethodsPlaceholder() {
+                // Show a placeholder when vault manager is not available
+                this.elements.vaultManagerContainer.innerHTML = `
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-blue-800">
+                                    Stored Payment Methods Available
+                                </h3>
+                                <div class="mt-2 text-sm text-blue-700">
+                                    <p>Customer ID: <code class="bg-blue-100 px-1 rounded">${this.currentSession?.customerId || 'Not set'}</code></p>
+                                    <p class="mt-1">Vault Manager will display here when payment methods are stored.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            showGuestCheckoutMessage() {
+                // Show message for guest checkout (no stored payment methods)
+                this.elements.vaultManagerContainer.innerHTML = `
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm text-gray-700">
+                                    <strong>Guest Checkout:</strong> Add an email address to enable payment method storage for future use.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            handleVaultManagerError(error) {
+                // Handle vault manager errors gracefully
+                this.elements.vaultManagerContainer.innerHTML = `
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-yellow-800">
+                                    Stored Payment Methods Unavailable
+                                </h3>
+                                <div class="mt-2 text-sm text-yellow-700">
+                                    <p>Unable to load stored payment methods at this time.</p>
+                                    <p class="mt-1">Error: ${error.message || 'Unknown error'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            updateClientSessionDisplay() {
+                // Display current session data in the client session input
+                if (this.currentSession && this.elements.clientTokenInput && !this.debugConfig.useCustomSession) {
+                    const displaySession = {
+                        orderId: this.currentSession.orderId,
+                        amount: this.currentSession.amount,
+                        currency: this.currentSession.currency,
+                        customerId: this.currentSession.customerId,
+                        clientToken: this.currentSession.clientToken ? `${this.currentSession.clientToken.substring(0, 50)}...` : undefined,
+                        // Add Apple Pay config if relevant
+                        ...(this.debugConfig.applePayRecurring && { applePayRecurring: true }),
+                        ...(this.debugConfig.applePayDeferred && { applePayDeferred: true }),
+                        ...(this.debugConfig.applePayAutoReload && { applePayAutoReload: true }),
+                        ...(this.debugConfig.countryCode && { countryCode: this.debugConfig.countryCode }),
+                        ...(this.debugConfig.merchantName && { applePayMerchantName: this.debugConfig.merchantName })
+                    };
+                    
+                    this.elements.clientTokenInput.value = JSON.stringify(displaySession, null, 2);
+                }
+            }
+
+            async restartCheckout() {
+                try {
+                    console.log('🔄 Restarting checkout with current session...');
+                    
+                    if (!this.currentSession) {
+                        this.showMessage("No active session found. Please start checkout first.", 'warning');
+                        return;
+                    }
+
+                    // Reset UI
+                    this.resetUI();
+                    
+                    // Restart with current configuration
+                    await this.startCheckout();
+                    
+                    this.showMessage("Checkout restarted successfully!", 'success');
+                    
+                } catch (error) {
+                    console.error('❌ Failed to restart checkout:', error);
+                    this.showMessage(`Failed to restart checkout: ${error.message}`, 'error');
+                }
+            }
+
+            async checkPaymentStatus() {
+                const paymentId = this.elements.paymentIdInput.value.trim();
+                
+                if (!paymentId) {
+                    this.showMessage("Please enter a payment ID", 'warning');
+                    return;
+                }
+
+                try {
+                    console.log(`🔍 Checking payment status for ID: ${paymentId}`);
+                    
+                    this.elements.paymentStatusResponse.innerHTML = '<div class="text-blue-600">Loading payment status...</div>';
+                    
+                    const response = await fetch(`/payments/${paymentId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        // Format the response nicely
+                        this.elements.paymentStatusResponse.innerHTML = `
+                            <div class="text-green-600 font-medium mb-2">✅ Payment Found</div>
+                            <pre class="text-xs">${JSON.stringify(data, null, 2)}</pre>
+                        `;
+                        this.showMessage("Payment status retrieved successfully!", 'success');
+                    } else {
+                        this.elements.paymentStatusResponse.innerHTML = `
+                            <div class="text-red-600 font-medium mb-2">❌ Error</div>
+                            <pre class="text-xs">${JSON.stringify(data, null, 2)}</pre>
+                        `;
+                        this.showMessage(`Failed to get payment status: ${data.message || 'Unknown error'}`, 'error');
+                    }
+
+                } catch (error) {
+                    console.error('❌ Payment status check failed:', error);
+                    this.elements.paymentStatusResponse.innerHTML = `
+                        <div class="text-red-600 font-medium mb-2">❌ Request Failed</div>
+                        <div class="text-xs">${error.message}</div>
+                    `;
+                    this.showMessage(`Failed to check payment status: ${error.message}`, 'error');
+                }
+            }
+
+            clearPaymentStatus() {
+                this.elements.paymentIdInput.value = '';
+                this.elements.paymentStatusResponse.innerHTML = 'No payment checked yet';
+                this.showMessage("Payment status cleared", 'info');
+            }
+
+            resetStyle() {
+                this.debugConfig.customStyle = null;
+                this.elements.styleEditor.value = '';
+                this.elements.themePreset.value = 'default';
+                
+                this.showMessage("Reset to default style. Restart checkout to see changes.", 'info');
+            }
+
+            async copyStyleToClipboard() {
+                const styleText = this.elements.styleEditor.value.trim();
+                
+                if (!styleText) {
+                    this.showMessage("No style to copy. Create a custom style first.", 'warning');
+                    return;
+                }
+
+                try {
+                    await navigator.clipboard.writeText(styleText);
+                    this.showMessage("Style JSON copied to clipboard!", 'success');
+                } catch (error) {
+                    // Fallback for browsers that don't support clipboard API
+                    const textArea = document.createElement('textarea');
+                    textArea.value = styleText;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    
+                    this.showMessage("Style JSON copied to clipboard!", 'success');
+                }
+            }
+
+            checkPrimerSDK() {
+                console.log('🚀 Initializing Primer Checkout Demo...');
+                
+                // Wait for scripts to load
+                setTimeout(() => {
+                    if (typeof Primer !== 'undefined' || typeof window.Primer !== 'undefined') {
+                        const PrimerSDK = Primer || window.Primer;
+                        console.log('✅ Primer SDK loaded successfully');
+                        console.log('SDK Version:', PrimerSDK.SDK_VERSION || 'Unknown');
+                        this.showMessage("Welcome! Click 'Start Secure Checkout' to begin your purchase.", 'info');
+                    } else {
+                        console.error('❌ Primer SDK failed to load');
+                        this.showMessage("Primer SDK failed to load. Please refresh the page and try again.", 'error');
+                    }
+                }, 1000);
+            }
+        }
+
+        // Initialize the application
+        window.primerApp = new PrimerCheckoutApp();
+    </script>
+</body>
+</html>

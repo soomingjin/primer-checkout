@@ -1,46 +1,62 @@
 # 🚀 Primer Universal Checkout Integration
 
-A production-ready **Primer Universal Checkout** integration with debugging tools and dual environment support (local + Vercel).
+A Primer Universal Checkout integration with comprehensive debugging tools, side-by-side developer interface.
 
-Built in **5 days** as a solo engineering project to demonstrate rapid payment integration capabilities.
+Built as an engineering demo to showcase payment integration capabilities with developer tools
+
+
+**Live Demo:**  
+👉 [Try the Universal Checkout Demo here](https://primer-checkout-xi.vercel.app/)  
+
+
+
 
 ## 🎯 Project Goals
 
-- ✅ Integrate Primer Universal Checkout SDK
-- ✅ Support customer management and payment vaulting  
-- ✅ Handle Apple Pay and modern payment methods
-- ✅ Work in both development and production environments
-- ✅ Provide debugging tools for testing scenarios
-- ✅ Maintain clean, readable code for future enhancements
+- ✅ **Basic Primer Integration**: Implement Universal Checkout Web SDK
+- ✅ **Developer Experience**: Debug panel
+- ✅ **Payment Vaulting**: Stored payment methods
+- ✅ **Multiple Payment Methods**: Apple Pay, Google Pay, Cards, Klarna, PayPal
+- ✅ **Production Ready**: Dual environment support with proper security
+- ✅ **Testing Tools**: Scenario testing and status monitoring
 
 ## ✨ Key Features
 
 ### 💳 Payment Integration
-- **Universal Checkout**: Full Primer SDK integration with all payment methods
-- **Customer Vaulting**: Save payment methods for returning customers
-- **Apple Pay Support**: Configured for standard, recurring, and deferred payments
-- **Real-time Processing**: Live payment flow with success/error handling
+- **Universal Checkout**: Primer SDK integration with multiple payment methods
+- **Customer Vaulting**: Secure payment method storage for returning customers
+- **Real-time Processing**: Live payment flow with error handling
+- **Payment Status API**: Query transaction status and details by payment ID
 
 ### 🛠️ Developer Tools
-- **Debug Panel**: Test different payment scenarios instantly
-- **Request Monitoring**: See API requests/responses in real-time
-- **Payment Status Checker**: Query payment status by ID
-- **Test Scenarios**: Pre-configured amounts for testing success/failure cases
+- **Side-by-Side Debug Panel**: Always-visible development interface
+- **Custom Client Sessions**: Override default behavior with custom JSON payloads
+- **Test Scenarios**: Pre-configured test cases for different payment flows
+  - ✅ Success Case (£1.00)
+  - 💾 Vault Customer (£49.99)
+  - 🔄 Subscription (£19.99)
+- **Quick Amount Presets**: Instant amount selection (£1.00, £9.99, £49.99, £99.99)
+- **API Request Monitor**: Real-time request/response logging
+- **Payment Status Checker**: Live payment verification by ID
+- **JSON Validation**: Built-in validator for custom session payloads
 
-### 🌐 Dual Environment
-- **Local Development**: Express server with hot reload
-- **Production Ready**: Vercel serverless deployment with proper CSP
-- **Environment Parity**: Same code runs in both environments
+### 🌐 Architecture
+- **Local Development**: Express server with hot reload and detailed logging
+- **Production Ready**: Vercel serverless deployment
+- **Environment Parity**: Identical behavior across development and production
+- **Security Headers**: Proper CSP, security headers, and CORS configuration
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - **Node.js** ≥ 18.0.0
 - **Yarn** (preferred) or **npm**
-- **Primer Account** (free at [primer.io](https://primer.io))
+- **Primer Account** with API access (At [https://sandbox-dashboard.primer.io/developers/apiKeys](https://sandbox-dashboard.primer.io/developers/apiKeys))
 
-### 1. Install Dependencies
+### 1. Clone & Install
 ```bash
+git clone <repository-url>
+cd primer-checkout
 yarn install
 ```
 
@@ -58,118 +74,188 @@ echo "PRIMER_API_KEY=sk_test_your_actual_api_key_here" >> .env
 yarn dev
 ```
 
-### 4. Open Browser
-Navigate to `http://localhost:3000` and start testing payments!
+### 4. Open Application
+Navigate to `http://localhost:3000` to see the full interface:
+- **Left Side**: Main checkout application
+- **Right Side**: Developer debug panel with testing tools
 
-### 5. Deploy to Vercel (Optional)
+### 5. Deploy to Production
 ```bash
+yarn deploy
+# or
 vercel --prod
 ```
 
-## 📋 Configuration
+## 🔧 Configuration Options
 
-### Required
+### Required Environment Variables
 ```bash
 PRIMER_API_KEY=sk_test_your_primer_api_key_here
 ```
 
-### Optional
+### Optional Configuration
 ```bash
-PORT=3000
-NODE_ENV=development
-PRIMER_WEBHOOK_SECRET=your_webhook_secret_here
+PORT=3000                                    # Development server port
+NODE_ENV=development                         # Environment mode
+PRIMER_WEBHOOK_SECRET=your_webhook_secret    # Webhook signature verification
 ```
 
-## 🏗️ Project Structure
+## 🏗️ Architecture Overview
 
 ```
 primer-checkout-1/
-├── api/                      # Vercel serverless functions
-│   ├── _utils.js            # Shared utilities and validation
-│   ├── create-client-session.js
-│   ├── health.js
-│   └── payments/[id].js     # Payment status endpoint
-├── public/
-│   ├── index.html           # Main application
-│   └── css/checkout.css     # Styles
-├── server.js                # Local development server
-├── vercel.json              # Vercel deployment config
-└── package.json
+├── 🚀 api/                          # Vercel serverless functions
+│   ├── _utils.js                   # Shared utilities & validation
+│   ├── create-client-session.js    # Payment session creation
+│   ├── health.js                   # Health check endpoint
+│   ├── payments/[id].js           # Payment status queries
+│   └── webhook.js                  # Payment event handling
+├── 🎨 public/
+│   ├── index.html                  # Main application
+│   ├── css/checkout.css            # Styling
+│   └── assets/                     # Icons, favicons, manifest
+├── 🖥️ server.js                     # Local development server
+├── ⚙️ vercel.json                   # Deployment configuration
+├── 📦 package.json                  # Dependencies & scripts
+└── 📚 README.md                     # This file
 ```
 
 ## 🛠️ Available Commands
 
-| Command | Description |
-|---------|-------------|
-| `yarn dev` | Start development server with hot reload |
-| `yarn start` | Start production server |
-| `vercel --prod` | Deploy to Vercel |
+| Command | Description | Environment |
+|---------|-------------|-------------|
+| `yarn dev` | Start development server with hot reload | Local |
+| `yarn start` | Start production server locally | Local |
+| `yarn deploy` | Deploy to Vercel production | Cloud |
+| `yarn test` | Run integration tests | Any |
+| `yarn health` | Check system health and API connectivity | Any |
+| `yarn setup` | Interactive environment setup wizard | Local |
 
-## 🎯 How It Works
+## 🎯 Developer Debug Panel Features
 
-### 1. Client Session Creation
+### 🔑 Custom Client Sessions
+- **JSON Editor**: Modify client session creation parameters
+- **Validation**: Real-time JSON validation with error reporting
+- **Override Modes**: Use custom JWT tokens or session objects
+- **Auto-generation**: Fall back to form-based session creation
+
+### 🎭 Test Scenarios
+Pre-configured test cases for comprehensive payment testing:
+
 ```javascript
-// Backend creates secure session with Primer
-const orderData = {
-  orderId: "ORD-1234567890",
-  currencyCode: "GBP", 
-  amount: 4999,
-  customer: { emailAddress: "customer@example.com" },
-  paymentMethod: { vaultOnSuccess: true } // Save cards for returning customers
-};
+// Success Case - Quick positive test
+{ amount: 1.00, email: "success@test.com" }
+
+// Vault Customer - Test payment method storage
+{ amount: 49.99, email: "vault@customer.com", vaultOnSuccess: true }
+
+// Subscription - Recurring payment testing
+{ amount: 19.99, email: "subscription@test.com", recurring: true }
 ```
 
-### 2. Frontend Integration
+### 📊 API Monitoring
+- **Request Logger**: See exactly what data is sent to Primer
+- **Response Inspector**: View complete API responses with formatting
+- **Error Tracking**: Detailed error messages with resolution hints
+- **Performance Metrics**: Response times and success rates
+
+### 💳 Payment Status Tools
+- **ID Lookup**: Query any payment by ID for status verification  
+- **Response Formatting**: Beautifully formatted JSON responses
+- **History Tracking**: Remember recent payment lookups
+- **Error Handling**: Clear error messages for invalid IDs
+
+## 📡 API Endpoints Reference
+
+| Method | Endpoint | Description | Parameters |
+|--------|----------|-------------|------------|
+| `GET` | `/` | Main application interface | - |
+| `GET` | `/health` | System health check | - |
+| `POST` | `/create-client-session` | Create payment session | `amount`, `currency`, `customerEmail`, etc. |
+| `GET` | `/payments/{id}` | Query payment status | `id` (path parameter) |
+| `POST` | `/webhook` | Handle payment events | Primer webhook payload |
+
+### Example API Usage
+
+#### Creating a Client Session
 ```javascript
-// Initialize Primer Universal Checkout
-await Primer.showUniversalCheckout(clientToken, {
-  container: '#primer-container',
-  onCheckoutComplete({ payment }) {
-    console.log('Payment successful!', payment.id);
-  }
+const response = await fetch('/create-client-session', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    amount: 4999,           // £49.99 in pence
+    currency: 'GBP',
+    customerEmail: 'customer@example.com',
+    customerId: 'customer-123',
+    vaultOnSuccess: true    // Save payment method
+  })
 });
 ```
 
-## 📡 API Endpoints
+#### Checking Payment Status
+```javascript
+const payment = await fetch('/payments/XYZABC').then(r => r.json());
+console.log('Payment Status:', payment.status);
+```
 
-- `GET /` - Main application
-- `GET /health` - Health check
-- `POST /create-client-session` - Create payment session
-- `GET /payments/{id}` - Check payment status
-- `POST /webhook` - Payment webhooks (basic implementation)
+## 🚨 Troubleshooting Guide
 
-## 🚨 Troubleshooting
+### Common Issues & Solutions
 
-**API Key Issues:**
+**🔑 API Key Problems**
 ```bash
-# Make sure your API key is set
+# Verify your API key is set correctly
+echo $PRIMER_API_KEY
+
+# If missing, add it:
 echo "PRIMER_API_KEY=sk_test_your_key_here" >> .env
 ```
 
-**Port Conflicts:**
+**🌐 Port Conflicts**
 ```bash
+# Check what's using port 3000
+lsof -i :3000
+
 # Use different port
 echo "PORT=3001" >> .env
+yarn dev
 ```
 
-**CSP Errors:** Check browser console - some payment methods need specific CSP permissions.
+**🛡️ CSP/Security Errors**
+- Check browser console for Content Security Policy violations
+- Ensure Primer domains are whitelisted in `vercel.json`
+- Verify CORS headers are properly configured
 
-## 🔮 Future Improvements
+**💳 Payment Method Issues**
+- Ensure your Primer account has the required payment methods enabled
+- Verify webhook endpoints are accessible if using live payments
 
-- [ ] Complete webhook signature verification
-- [ ] Add more payment method configurations  
-- [ ] Implement proper error retry logic
-- [ ] Add customer database integration
-- [ ] Build admin dashboard for payments
+**🔧 Development vs Production Differences**
+- Environment variables may differ between local and Vercel
+- Check `NODE_ENV` is set correctly
+- Verify all required secrets are configured in Vercel dashboard
 
-## 📚 Resources
+## 🔮 Future Enhancements
 
-- [Primer Documentation](https://primer.io/docs)
-- [Universal Checkout Guide](https://primer.io/docs/checkout/drop-in/overview)
-- [API Reference](https://primer.io/docs/api-reference)
+### Planned Features
+- [ ] **Mobile SDK Integration**: React Native companion app
 
----
+### Technical Improvements
+- [ ] **Database Integration**: Persistent customer and payment storage
+- [ ] **Testing**: Comprehensive end-to-end test suite
 
-**Built in 5 days** as a rapid prototype for Primer Universal Checkout integration.
+## 📚 Resources & Documentation
 
-See `IMPLEMENTATION_GUIDE.md` for detailed development notes and technical architecture.
+### Official Primer Resources
+- [🏠 Primer Documentation](https://primer.io/docs)
+- [💳 Universal Checkout Guide](https://primer.io/docs/checkout/drop-in/overview)
+- [📖 API Reference](https://primer.io/docs/api-reference/v2.4)
+- [🔧 SDK Documentation](https://primer.io/docs/sdk)
+
+### Development Resources
+- [⚛️ React Native Integration](https://primer.io/docs/checkout/drop-in/customization/react-native)
+- [📱 Mobile SDKs](https://primer.io/docs/sdk/mobile)
+- [🪝 Webhooks Guide](https://primer.io/docs/api-reference/get-started/configure-webhooks)
+
+### Testing Resources
+- [🧪 Test Cards](https://primer.io/docs/testing/3d-secure)
