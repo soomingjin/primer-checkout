@@ -25,21 +25,67 @@ const PRIMER_WEBHOOK_URL = 'https://api.sandbox.primer.io/webhooks';
 const PRIMER_API_KEY = process.env.PRIMER_API_KEY;
 const WEBHOOK_SECRET = process.env.PRIMER_WEBHOOK_SECRET;
 
-// Validation schemas
+// Validation schemas - Support both internal format and direct Primer API format
 const createSessionSchema = Joi.object({
-  userId: Joi.string().min(1).max(100),
-  cartId: Joi.string().min(1).max(100),
-  amount: Joi.number().positive().max(9999999),
-  currency: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').default('GBP'),
-  customerEmail: Joi.string().email(),
+  // Internal format fields
+  userId: Joi.string().min(1).max(100).optional(),
+  cartId: Joi.string().min(1).max(100).optional(),
+  amount: Joi.number().positive().max(9999999).optional(),
+  currency: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').default('GBP').optional(),
+  customerEmail: Joi.string().email().optional(),
   customerId: Joi.string().min(1).max(256).optional(), // Support for Primer customerId
+  
+  // Direct Primer API format fields
+  orderId: Joi.string().min(1).max(256).optional(), // Direct Primer API format
+  currencyCode: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').optional(), // Primer API format
+  
+  // Apple Pay specific parameters (as per Primer Apple Pay docs)
+  countryCode: Joi.string().length(2).uppercase().default('GB').optional(), // Required for Apple Pay
+  applePayMerchantName: Joi.string().min(1).max(128).optional(), // Override merchant name
+  applePayRecurring: Joi.boolean().default(false).optional(), // Enable recurring payments
+  applePayDeferred: Joi.boolean().default(false).optional(), // Enable deferred payments  
+  applePayAutoReload: Joi.boolean().default(false).optional(), // Enable automatic reload
+  
+  // Internal format items
   items: Joi.array().items(Joi.object({
     id: Joi.string().required(),
     name: Joi.string().required(),
     amount: Joi.number().positive().required(),
     quantity: Joi.number().integer().positive().required()
-  }))
-});
+  })).optional(),
+  
+  // Direct Primer API format
+  order: Joi.object({
+    countryCode: Joi.string().length(2).uppercase().optional(),
+    lineItems: Joi.array().items(Joi.object({
+      itemId: Joi.string().required(),
+      description: Joi.string().required(),
+      amount: Joi.number().positive().required(),
+      quantity: Joi.number().integer().positive().required()
+    })).optional()
+  }).optional(),
+  
+  // Direct Primer API customer format
+  customer: Joi.object({
+    emailAddress: Joi.string().email().optional()
+  }).optional(),
+  
+  // Direct Primer API payment method format
+  paymentMethod: Joi.object({
+    vaultOnSuccess: Joi.boolean().optional(),
+    options: Joi.object({
+      APPLE_PAY: Joi.object({
+        merchantName: Joi.string().optional(),
+        recurringPaymentRequest: Joi.object().unknown().optional(),
+        deferredPaymentRequest: Joi.object().unknown().optional(),
+        automaticReloadRequest: Joi.object().unknown().optional()
+      }).optional()
+    }).optional()
+  }).optional(),
+  
+  // Allow any other Primer API fields
+  metadata: Joi.object().unknown().optional()
+}).unknown(); // Allow unknown fields for direct Primer API compatibility
 
 // Security middleware - disable CSP for Vercel deployment (CSP handled by vercel.json)
 if (NODE_ENV === 'production') {
@@ -152,6 +198,63 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Payment status endpoint - GET /payments/{id}
+app.get('/payments/:id', async (req, res) => {
+  try {
+    // Validate API key
+    if (!PRIMER_API_KEY || PRIMER_API_KEY === 'sk_test_...') {
+      return res.status(500).json({
+        error: 'Primer API Key not configured. Please check your environment variables.',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const { id: paymentId } = req.params;
+    
+    if (!paymentId) {
+      return res.status(400).json({
+        error: 'Payment ID is required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    console.log(`🔍 Fetching payment status for ID: ${paymentId}`);
+
+    // Make request to Primer API
+    const response = await fetch(`https://api.sandbox.primer.io/payments/${paymentId}`, {
+      method: 'GET',
+      headers: {
+        'X-API-KEY': PRIMER_API_KEY,
+        'Content-Type': 'application/json',
+        'X-API-Version': '2.4',
+        'User-Agent': 'PrimerCheckoutDemo/2.1.0'
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(`❌ Primer API error:`, data);
+      return res.status(response.status).json({
+        error: data.message || 'Failed to get payment status',
+        details: data,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    console.log(`✅ Payment status retrieved for ID: ${paymentId}`);
+    return res.json(data);
+
+  } catch (error) {
+    console.error('❌ Payment status check failed:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
@@ -177,10 +280,59 @@ app.post('/create-client-session', async (req, res) => {
       });
     }
     
-    const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, customerId, items } = value;
+    // Handle both internal format and direct Primer API format
+    let orderData;
     
-    // Build order data following official Primer API format
-    const orderData = {
+    // Check if this is direct Primer API format (has orderId or currencyCode)
+    if (value.orderId || value.currencyCode || value.order) {
+      console.log('📦 Processing direct Primer API format');
+      
+      // Use the payload directly but ensure required fields
+      orderData = {
+        // Use provided orderId or generate one
+        orderId: value.orderId || generateOrderId(),
+        
+        // Handle currency - prefer currencyCode, fallback to currency
+        currencyCode: value.currencyCode || value.currency || 'GBP',
+        
+        // Use provided amount or default
+        amount: value.amount || 4999,
+        
+        // Pass through other Primer API fields
+        ...(value.customerId && { customerId: value.customerId }),
+        ...(value.customer && { customer: value.customer }),
+        ...(value.order && { order: value.order }),
+        ...(value.paymentMethod && { paymentMethod: value.paymentMethod }),
+        ...(value.metadata && { metadata: value.metadata }),
+        
+        // Ensure we have customer info if not provided
+        ...(!value.customer && {
+          customer: {
+            emailAddress: value.customerEmail || "demo@example.com"
+          }
+        }),
+        
+        // Ensure we have order info if not provided
+        ...(!value.order && {
+          order: {
+            countryCode: value.countryCode || "GB",
+            lineItems: [{
+              itemId: "direct-api-item",
+              description: "Direct API Test Item",
+              amount: value.amount || 4999,
+              quantity: 1
+            }]
+          }
+        })
+      };
+    } else {
+      console.log('📦 Processing internal format');
+      
+      // Process internal format (original logic)
+      const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, customerId, items, 
+              countryCode, applePayMerchantName, applePayRecurring, applePayDeferred, applePayAutoReload } = value;
+    
+      orderData = {
       // Required fields per official documentation
       orderId: generateOrderId(),
       currencyCode: currency,
@@ -207,15 +359,50 @@ app.post('/create-client-session', async (req, res) => {
           amount: amount,
           quantity: 1
         }],
-        // Optional: Add country code for better payment method selection
-        countryCode: "GB"
+        // Required for Apple Pay - country where order is created
+        countryCode: countryCode || "GB"
       },
       
-      // Optional: Payment method configuration
+      // Payment method configuration with Apple Pay support
       paymentMethod: {
-        vaultOnSuccess: Boolean(customerId) // Enable vaulting when customerId is provided
+        vaultOnSuccess: Boolean(customerId), // Enable vaulting when customerId is provided
+        // Apple Pay specific options (as per Primer API docs)
+        options: {
+          APPLE_PAY: {
+            // Merchant display name for Apple Pay
+            ...(applePayMerchantName && {
+              merchantDisplayName: applePayMerchantName
+            }),
+            // Payment capabilities based on scenario type
+            ...(applePayRecurring && {
+              merchantCapabilities: ["supports3DS", "supportsEMV", "supportsCredit", "supportsDebit"],
+              paymentSummaryItems: [{
+                label: "Recurring Payment Setup",
+                amount: amount,
+                type: "final"
+              }]
+            }),
+            ...(applePayDeferred && {
+              merchantCapabilities: ["supports3DS", "supportsEMV", "supportsCredit"],
+              paymentSummaryItems: [{
+                label: "Buy Now, Pay Later",
+                amount: amount,
+                type: "pending"
+              }]
+            }),
+            ...(applePayAutoReload && {
+              merchantCapabilities: ["supports3DS", "supportsEMV", "supportsCredit", "supportsDebit"],
+              paymentSummaryItems: [{
+                label: "Auto-reload Setup", 
+                amount: amount,
+                type: "final"
+              }]
+            })
+          }
+        }
       }
     };
+  }
     
     // Make API call with retry logic
     const response = await retryWithBackoff(async () => {

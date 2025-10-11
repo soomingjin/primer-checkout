@@ -29,45 +29,128 @@ export default async function handler(req, res) {
       return errorResponse(res, 400, 'Invalid request data', error.details.map(d => d.message));
     }
     
-    const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, customerId, items } = value;
+    // Handle both internal format and direct Primer API format
+    let orderData;
     
-    // Build order data following official Primer API format
-    const orderData = {
-      // Required fields per official documentation
-      orderId: generateOrderId(),
-      currencyCode: currency,
-      amount: amount,
+    // Check if this is direct Primer API format (has orderId or currencyCode)
+    if (value.orderId || value.currencyCode || value.order) {
+      console.log('📦 Processing direct Primer API format');
       
-      // Customer ID for enabling saved payment methods (as per official docs)
-      ...(customerId && { customerId: customerId }),
+      // Use the payload directly but ensure required fields
+      orderData = {
+        // Use provided orderId or generate one
+        orderId: value.orderId || generateOrderId(),
+        
+        // Handle currency - prefer currencyCode, fallback to currency
+        currencyCode: value.currencyCode || value.currency || 'GBP',
+        
+        // Use provided amount or default
+        amount: value.amount || 4999,
+        
+        // Pass through other Primer API fields
+        ...(value.customerId && { customerId: value.customerId }),
+        ...(value.customer && { customer: value.customer }),
+        ...(value.order && { order: value.order }),
+        ...(value.paymentMethod && { paymentMethod: value.paymentMethod }),
+        ...(value.metadata && { metadata: value.metadata }),
+        
+        // Ensure we have customer info if not provided
+        ...(!value.customer && {
+          customer: {
+            emailAddress: value.customerEmail || "demo@example.com"
+          }
+        }),
+        
+        // Ensure we have order info if not provided
+        ...(!value.order && {
+          order: {
+            countryCode: value.countryCode || "GB",
+            lineItems: [{
+              itemId: "direct-api-item",
+              description: "Direct API Test Item",
+              amount: value.amount || 4999,
+              quantity: 1
+            }]
+          }
+        })
+      };
+    } else {
+      console.log('📦 Processing internal format');
       
-      // Customer information (as per official docs)
-      customer: {
-        emailAddress: customerEmail || "demo@example.com"
-      },
+      // Process internal format (original logic)
+      const { userId, cartId, amount = 4999, currency = 'GBP', customerEmail, customerId, items } = value;
       
-      // Order details with line items (required per official docs)
-      order: {
-        lineItems: items ? items.map(item => ({
-          itemId: item.id,
-          description: item.name,
-          amount: item.amount,
-          quantity: item.quantity
-        })) : [{
-          itemId: "hoodie-sku-1",
-          description: "Premium Primer Hoodie", 
-          amount: amount,
-          quantity: 1
-        }],
-        // Optional: Add country code for better payment method selection
-        countryCode: "GB"
-      },
+      orderData = {
+        // Required fields per official documentation
+        orderId: generateOrderId(),
+        currencyCode: currency,
+        amount: amount,
+        
+        // Customer ID for enabling saved payment methods (as per official docs)
+        ...(customerId && { customerId: customerId }),
+        
+        // Customer information (as per official docs)
+        customer: {
+          emailAddress: customerEmail || "demo@example.com"
+        },
+        
+        // Order details with line items (required per official docs)
+        order: {
+          // Required for Apple Pay - country where order is created
+          countryCode: value.countryCode || "GB",
+          lineItems: items ? items.map(item => ({
+            itemId: item.id,
+            description: item.name,
+            amount: item.amount,
+            quantity: item.quantity
+          })) : [{
+            itemId: "hoodie-sku-1",
+            description: "Premium Primer Hoodie", 
+            amount: amount,
+            quantity: 1
+          }]
+        },
       
-      // Optional: Payment method configuration
-      paymentMethod: {
-        vaultOnSuccess: Boolean(customerId) // Enable vaulting when customerId is provided
-      }
-    };
+        // Payment method configuration with Apple Pay support
+        paymentMethod: {
+          vaultOnSuccess: Boolean(customerId), // Enable vaulting when customerId is provided
+          // Apple Pay specific options (as per Primer API docs)
+          options: {
+            APPLE_PAY: {
+              // Merchant display name for Apple Pay
+              ...(value.applePayMerchantName && {
+                merchantDisplayName: value.applePayMerchantName
+              }),
+              // Payment capabilities based on scenario type
+              ...(value.applePayRecurring && {
+                merchantCapabilities: ["supports3DS", "supportsEMV", "supportsCredit", "supportsDebit"],
+                paymentSummaryItems: [{
+                  label: "Recurring Payment Setup",
+                  amount: amount,
+                  type: "final"
+                }]
+              }),
+              ...(value.applePayDeferred && {
+                merchantCapabilities: ["supports3DS", "supportsEMV", "supportsCredit"],
+                paymentSummaryItems: [{
+                  label: "Buy Now, Pay Later",
+                  amount: amount,
+                  type: "pending"
+                }]
+              }),
+              ...(value.applePayAutoReload && {
+                merchantCapabilities: ["supports3DS", "supportsEMV", "supportsCredit", "supportsDebit"],
+                paymentSummaryItems: [{
+                  label: "Auto-reload Setup", 
+                  amount: amount,
+                  type: "final"
+                }]
+              })
+            }
+          }
+        }
+      };
+    }
     
     // Make API call with retry logic
     const response = await retryWithBackoff(async () => {

@@ -9,21 +9,67 @@ export const config = {
   NODE_ENV: process.env.NODE_ENV || 'production'
 };
 
-// Validation schemas
+// Validation schemas - Support both internal format and direct Primer API format
 export const createSessionSchema = Joi.object({
-  userId: Joi.string().min(1).max(100),
-  cartId: Joi.string().min(1).max(100),
-  amount: Joi.number().positive().max(9999999),
-  currency: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').default('GBP'),
-  customerEmail: Joi.string().email(),
+  // Internal format fields
+  userId: Joi.string().min(1).max(100).optional(),
+  cartId: Joi.string().min(1).max(100).optional(),
+  amount: Joi.number().positive().max(9999999).optional(),
+  currency: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').default('GBP').optional(),
+  customerEmail: Joi.string().email().optional(),
   customerId: Joi.string().min(1).max(256).optional(), // Support for Primer customerId
+  
+  // Direct Primer API format fields
+  orderId: Joi.string().min(1).max(256).optional(), // Direct Primer API format
+  currencyCode: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').optional(), // Primer API format
+  
+  // Apple Pay specific parameters (as per Primer Apple Pay docs)
+  countryCode: Joi.string().length(2).uppercase().default('GB').optional(), // Required for Apple Pay
+  applePayMerchantName: Joi.string().min(1).max(128).optional(), // Override merchant name
+  applePayRecurring: Joi.boolean().default(false).optional(), // Enable recurring payments
+  applePayDeferred: Joi.boolean().default(false).optional(), // Enable deferred payments  
+  applePayAutoReload: Joi.boolean().default(false).optional(), // Enable automatic reload
+  
+  // Internal format items
   items: Joi.array().items(Joi.object({
     id: Joi.string().required(),
     name: Joi.string().required(),
     amount: Joi.number().positive().required(),
     quantity: Joi.number().integer().positive().required()
-  }))
-});
+  })).optional(),
+  
+  // Direct Primer API format
+  order: Joi.object({
+    countryCode: Joi.string().length(2).uppercase().optional(),
+    lineItems: Joi.array().items(Joi.object({
+      itemId: Joi.string().required(),
+      description: Joi.string().required(),
+      amount: Joi.number().positive().required(),
+      quantity: Joi.number().integer().positive().required()
+    })).optional()
+  }).optional(),
+  
+  // Direct Primer API customer format
+  customer: Joi.object({
+    emailAddress: Joi.string().email().optional()
+  }).optional(),
+  
+  // Direct Primer API payment method format
+  paymentMethod: Joi.object({
+    vaultOnSuccess: Joi.boolean().optional(),
+    options: Joi.object({
+      APPLE_PAY: Joi.object({
+        merchantName: Joi.string().optional(),
+        recurringPaymentRequest: Joi.object().unknown().optional(),
+        deferredPaymentRequest: Joi.object().unknown().optional(),
+        automaticReloadRequest: Joi.object().unknown().optional()
+      }).optional()
+    }).optional()
+  }).optional(),
+  
+  // Allow any other Primer API fields
+  metadata: Joi.object().unknown().optional()
+}).unknown(); // Allow unknown fields for direct Primer API compatibility
 
 // Utility functions
 export function validateApiKey() {

@@ -12,6 +12,10 @@
     {
       "source": "/webhook",
       "destination": "/api/webhook"
+    },
+    {
+      "source": "/payments/(.*)",
+      "destination": "/api/payments/$1"
     }
   ],
   "headers": [
