@@ -1,27 +1,14 @@
-import { 
-  validateApiKey, 
-  generateOrderId, 
-  retryWithBackoff,
-  config,
-  errorResponse,
-  successResponse,
-  setCorsHeaders
-} from './_utils.js';
+import { validateApiKey, generateOrderId, retryWithBackoff, errorResponse, successResponse, setCorsHeaders, config } from './_utils.js';
 import Joi from 'joi';
 
-// Validation schema for charging payment method tokens
-const chargePaymentMethodSchema = Joi.object({
-  paymentMethodToken: Joi.string().required(),
-  amount: Joi.number().positive().max(9999999).required(),
-  currencyCode: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').default('GBP').required(),
-  orderId: Joi.string().min(1).max(256).optional(),
-  paymentType: Joi.string().valid('FIRST_PAYMENT', 'ECOMMERCE', 'SUBSCRIPTION', 'UNSCHEDULED').optional(),
-  firstPaymentReason: Joi.string().valid('CardOnFile', 'Recurring', 'Unscheduled').optional(),
-  customerId: Joi.string().min(1).max(256).optional(),
-  customerEmail: Joi.string().email().optional(),
-  description: Joi.string().max(500).optional(),
-  metadata: Joi.object().unknown().optional()
-});
+// Import fetch for Vercel environment
+let fetch;
+try {
+  fetch = (await import('node-fetch')).default;
+} catch (e) {
+  // Use global fetch if available (newer Node.js versions)
+  fetch = global.fetch;
+}
 
 export default async function handler(req, res) {
   // Handle CORS preflight
@@ -36,9 +23,23 @@ export default async function handler(req, res) {
   try {
     // Validate API key
     validateApiKey();
+
+    // Validation schema - accepts firstPaymentReason as input parameter
+    const chargeSchema = Joi.object({
+      paymentMethodToken: Joi.string().required(),
+      amount: Joi.number().positive().max(9999999).required(),
+      currencyCode: Joi.string().length(3).uppercase().valid('GBP', 'USD', 'EUR', 'JPY').default('GBP').required(),
+      orderId: Joi.string().min(1).max(256).optional(),
+      paymentType: Joi.string().valid('FIRST_PAYMENT', 'ECOMMERCE', 'SUBSCRIPTION', 'UNSCHEDULED').optional(),
+      firstPaymentReason: Joi.string().valid('CardOnFile', 'Recurring', 'Unscheduled').optional(),
+      customerId: Joi.string().min(1).max(256).optional(),
+      customerEmail: Joi.string().email().optional(),
+      description: Joi.string().max(500).optional(),
+      metadata: Joi.object().unknown().optional()
+    });
     
     // Validate request body
-    const { error, value } = chargePaymentMethodSchema.validate(req.body);
+    const { error, value } = chargeSchema.validate(req.body);
     if (error) {
       return errorResponse(res, 400, 'Invalid request data', error.details.map(d => d.message));
     }
@@ -62,7 +63,7 @@ export default async function handler(req, res) {
       ...(value.metadata && { metadata: value.metadata })
     };
 
-    // Add paymentMethod object with firstPaymentReason if provided
+    // Add paymentMethod object with firstPaymentReason if provided (per Primer API docs)
     if (value.firstPaymentReason) {
       paymentRequest.paymentMethod = {
         firstPaymentReason: value.firstPaymentReason
@@ -86,11 +87,7 @@ export default async function handler(req, res) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Primer Payments API error:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
+        console.error('❌ Primer Payments API error:', errorData);
         throw new Error(`Primer Payments API request failed: ${response.status} ${response.statusText}`);
       }
 
@@ -100,8 +97,7 @@ export default async function handler(req, res) {
     console.log('✅ Payment processed successfully:', {
       paymentId: paymentResponse.id,
       status: paymentResponse.status,
-      amount: paymentResponse.amount,
-      currency: paymentResponse.currencyCode
+      amount: paymentResponse.amount
     });
 
     return successResponse(res, {
@@ -111,19 +107,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ Payment method token charge failed:', error);
-    
-    // Extract meaningful error message
-    let errorMessage = 'Failed to charge payment method token';
-    if (error.message.includes('Primer Payments API request failed')) {
-      errorMessage = error.message;
-    } else if (error.message) {
-      errorMessage = `Payment processing error: ${error.message}`;
-    }
-
-    return errorResponse(res, 500, errorMessage, {
-      timestamp: new Date().toISOString(),
-      error: config.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
+    console.error('❌ Failed to charge payment method token:', error.message);
+    return errorResponse(res, 500, 'Failed to charge payment method token', error.message);
   }
 }

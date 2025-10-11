@@ -57,6 +57,7 @@ export const createSessionSchema = Joi.object({
   // Direct Primer API payment method format
   paymentMethod: Joi.object({
     vaultOnSuccess: Joi.boolean().optional(),
+    firstPaymentReason: Joi.string().valid('CardOnFile', 'Recurring', 'Unscheduled').optional(),
     options: Joi.object({
       APPLE_PAY: Joi.object({
         merchantName: Joi.string().optional(),
